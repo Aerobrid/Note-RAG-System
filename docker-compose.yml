@@ -1,0 +1,53 @@
+services:
+  backend:
+    build: ./backend
+    container_name: rag-system-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./notes:/app/notes                          # folder to drop your files (data) in
+      - ./chroma_db:/app/chroma_db                  # a persistent vector store (usually on system host device)
+      - ./finetuned_model:/app/finetuned_model      # directory for finetuned models 
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - CHROMA_PATH=/app/chroma_db
+      - NOTES_DIR=/app/notes
+    ## UNCOMMENT if you do not need backend service depending on ollama container (look below for more notes on this)
+    # depends_on:
+    #   - ollama
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: rag-system-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+##  if you want to pull the latest ollama container and use that instead of ollama on your device,
+##  uncomment out the docker section below (ollama container service)
+
+#   ollama:
+#     image: ollama/ollama:latest
+#     container_name: rag-system-ollama
+#     ports:
+#       - "11434:11434"
+#     volumes:
+#       - ollama_data:/root/.ollama
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: all
+#               capabilities: [gpu]
+#     restart: unless-stopped
+
+# volumes:
+#   ollama_data:

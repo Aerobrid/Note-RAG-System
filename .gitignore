@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+frontend/.next/
+*.tsbuildinfo
+
+# Data (don't commit gigabytes of notes or model weights)
+chroma_db/
+notes/
+finetuned_model/
+finetune_data.jsonl
+*.gguf
+*.bin
+*.safetensors
+
+# Env
+.env
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+README.md
