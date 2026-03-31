@@ -16,8 +16,7 @@ langchain-google-genai>=2.0.7,<3.0.0
 langchain-ollama>=0.2.1,<0.3.0
 langgraph>=0.2.53,<0.3.0
 
-# ── Document Parsing (IBM Docling) ────────────
-docling>=2.70.0,<2.82.0
+pdfplumber==0.11.0
 
 # ── Vector Store ──────────────────────────────
 chromadb==0.5.23
@@ -40,3 +39,4 @@ anyio==4.7.0
 # ── Fine-tuning (install separately on GPU) ───
 # Run: pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 # Then: pip install trl transformers datasets accelerate bitsandbytes
+

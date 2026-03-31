@@ -8,10 +8,7 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
-from docling.document_converter import DocumentConverter
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import PdfFormatOption
+import pdfplumber
 
 CODE_EXTENSIONS = {
     ".py": "python", ".js": "javascript", ".ts": "typescript",
@@ -60,45 +57,35 @@ def parse_file(file_path: str | Path) -> ParsedDocument:
 
 
 def _parse_document(path: Path) -> ParsedDocument:
-    """Use Docling for rich document parsing (PDF, DOCX, PPTX)."""
-
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = True
-    pipeline_options.do_table_structure = True
-    pipeline_options.table_structure_options.do_cell_matching = True
-
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
-    )
-
-    result = converter.convert(str(path))
-    doc = result.document
-
-    # Export to markdown (preserves tables, headings, code blocks)
-    markdown_text = doc.export_to_markdown()
-
-    # Extract page count if available
-    page_count = 0
-    try:
-        page_count = len(doc.pages) if hasattr(doc, "pages") else 0
-    except Exception:
-        pass
-
-    return ParsedDocument(
-        text=markdown_text,
-        source=str(path),
-        doc_type="document",
-        title=path.stem.replace("_", " ").replace("-", " ").title(),
-        page_count=page_count,
-        metadata={
-            "source": str(path),
-            "filename": path.name,
-            "file_type": path.suffix.lower(),
-            "title": path.stem,
-        },
-    )
+    """Parse PDF using pdfplumber, fallback to plain text for others."""
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        with pdfplumber.open(str(path)) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        page_count = len(pdf.pages)
+        return ParsedDocument(
+            text=text,
+            source=str(path),
+            doc_type="document",
+            title=path.stem.replace("_", " ").replace("-", " ").title(),
+            page_count=page_count,
+            metadata={
+                "source": str(path),
+                "filename": path.name,
+                "file_type": path.suffix.lower(),
+                "title": path.stem,
+            },
+        )
+    else:
+        # Fallback: treat as plain text
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            return ParsedDocument(
+                text=text, source=str(path),
+                doc_type="document", title=path.stem,
+            )
+        except Exception as e:
+            raise ValueError(f"Cannot parse {path.name}: {e}") from e
 
 
 def _parse_code(path: Path) -> ParsedDocument:
