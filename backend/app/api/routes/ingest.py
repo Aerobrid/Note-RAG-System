@@ -5,7 +5,10 @@ The watchdog watches ./notes directory and automatically ingests any
 new file dropped there. This is the "agentic auto-index" feature.
 """
 from __future__ import annotations
+import asyncio
 
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 import hashlib
 from pathlib import Path
