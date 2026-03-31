@@ -106,7 +106,7 @@ export default function SearchPage() {
       </div>
 
       {/* Results */}
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-3 max-h-[60vh] overflow-y-auto custom-scroll">
         {searched && results.length === 0 && !isPending && (
           <div className="text-center py-12 text-[rgb(var(--text-2))]">
             <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />

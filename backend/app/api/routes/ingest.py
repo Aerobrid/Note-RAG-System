@@ -6,17 +6,13 @@ new file dropped there. This is the "agentic auto-index" feature.
 """
 from __future__ import annotations
 
-import asyncio
+
 import hashlib
-import os
-import shutil
 from pathlib import Path
 
+
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+from fastapi import APIRouter, BackgroundTasks, File, UploadFile
 
 from app.core.config import get_settings
 from app.core.ingestion.parser import parse_file, DOC_EXTENSIONS, CODE_EXTENSIONS
@@ -97,15 +93,33 @@ async def upload_files(
     notes_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
+    # Build a hash index of existing files in notes_dir
+    existing_hashes = {}
+    for file in notes_dir.iterdir():
+        if file.is_file():
+            with open(file, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+                existing_hashes[file_hash] = file.name
+
     for upload in files:
         suffix = Path(upload.filename).suffix.lower()
         if suffix not in SUPPORTED:
             results.append({"file": upload.filename, "error": f"Unsupported format: {suffix}"})
             continue
 
+        upload_bytes = await upload.read()
+        upload_hash = hashlib.sha256(upload_bytes).hexdigest()
+        if upload_hash in existing_hashes:
+            results.append({
+                "file": upload.filename,
+                "status": "skipped",
+                "reason": f"Duplicate of {existing_hashes[upload_hash]} by content hash"
+            })
+            continue
+
         dest = notes_dir / upload.filename
         async with aiofiles.open(dest, "wb") as f:
-            await f.write(await upload.read())
+            await f.write(upload_bytes)
 
         # Ingest in background
         background_tasks.add_task(ingest_file_async, str(dest))
