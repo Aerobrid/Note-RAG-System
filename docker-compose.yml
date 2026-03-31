@@ -11,9 +11,18 @@ services:
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GOOGLE_API_VERSION=${GOOGLE_API_VERSION:-v1}
+      - ANONYMIZED_TELEMETRY=False
       - OLLAMA_BASE_URL=http://ollama:11434
       - CHROMA_PATH=/app/chroma_db
       - NOTES_DIR=/app/notes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ## UNCOMMENT if you do not need backend service depending on ollama container (look below for more notes on this)
     # depends_on:
     #   - ollama

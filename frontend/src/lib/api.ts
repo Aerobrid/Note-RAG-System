@@ -1,8 +1,6 @@
-// In dev: Next.js rewrites /api/* -> backend (next.config.js)
-// In Docker: set NEXT_PUBLIC_API_URL=http://localhost:8000
-const API = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-  : "/api";
+// All API calls go through the Next.js proxy (/api/* -> backend)
+// This ensures we don't have CORS issues and can handle larger body sizes via middleware config.
+const API = "/api";
 
 export interface StreamChunk {
   type: "meta" | "token" | "done";
@@ -16,7 +14,8 @@ export async function* streamChat(
   query: string,
   history: { role: string; content: string }[]
 ): AsyncGenerator<StreamChunk> {
-  const res = await fetch(`${API}/chat/`, {
+  // Use /chat (no trailing slash) to match backend route and avoid 307 redirects
+  const res = await fetch(`${API}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, history, stream: true }),
@@ -64,7 +63,7 @@ export async function search(
   topK = 10
 ) {
   const params = new URLSearchParams({ q, collection, top_k: String(topK) });
-  const res = await fetch(`${API}/search/?${params}`);
+  const res = await fetch(`${API}/search?${params}`);
   if (!res.ok) throw new Error(`Search error: ${res.status}`);
   return res.json();
 }

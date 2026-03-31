@@ -1,10 +1,9 @@
 "use client";
 
-import { Bot, User, Copy, Check } from "lucide-react";
-import { useState } from "react";
-import type { Message } from "@/store/useAppStore";
+import { Message } from "@/store/useAppStore";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { SourcesPanel } from "./SourcesPanel";
+import { User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -12,60 +11,51 @@ interface Props {
 }
 
 export function MessageBubble({ message }: Props) {
-  const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
-  const copy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
   return (
-    <div className={cn("flex gap-3 group", isUser && "justify-end")}>
-      {!isUser && (
-        <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center shrink-0 mt-0.5">
-          <Bot className="w-4 h-4 text-white" />
+    <div className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300")}>
+      <div className={cn("flex gap-5", isUser ? "flex-row-reverse" : "flex-row")}>
+        {/* Avatar */}
+        <div
+          className={cn(
+            "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+            isUser 
+              ? "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))]" 
+              : "bg-brand text-white"
+          )}
+        >
+          {isUser ? <User className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
         </div>
-      )}
 
-      <div className={cn("max-w-[80%] min-w-0", isUser && "items-end flex flex-col")}>
-        {isUser ? (
-          <div className="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm">
-            {message.content}
-          </div>
-        ) : (
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl rounded-tl-sm px-4 py-3">
-            <MarkdownRenderer
-              content={message.content || " "}
-              isStreaming={message.isStreaming}
-            />
-            {!message.isStreaming && message.sources && message.sources.length > 0 && (
-              <SourcesPanel sources={message.sources} query_type={message.query_type} />
+        {/* Content */}
+        <div className={cn("flex-1 space-y-3 min-w-0 mt-1", isUser ? "text-right" : "text-left")}>
+          <div
+            className={cn(
+              "inline-block text-[15px] leading-relaxed",
+              isUser ? "text-[rgb(var(--text))] font-medium" : "text-[rgb(var(--text))]"
             )}
-          </div>
-        )}
-
-        {/* Copy button */}
-        {!message.isStreaming && (
-          <button
-            onClick={copy}
-            className="mt-1 opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[rgb(var(--text-2))] hover:text-[rgb(var(--text))] transition-all"
           >
-            {copied ? (
-              <><Check className="w-3 h-3" /> Copied</>
+            {isUser ? (
+              <p className="whitespace-pre-wrap">{message.content}</p>
             ) : (
-              <><Copy className="w-3 h-3" /> Copy</>
+              <div className="prose-rag-system max-w-none">
+                <MarkdownRenderer content={message.content} />
+                {message.isStreaming && (
+                  <span className="inline-block w-1.5 h-4 bg-brand/40 animate-pulse ml-1" />
+                )}
+              </div>
             )}
-          </button>
-        )}
-      </div>
+          </div>
 
-      {isUser && (
-        <div className="w-7 h-7 rounded-lg bg-[rgb(var(--surface-2))] flex items-center justify-center shrink-0 mt-0.5">
-          <User className="w-4 h-4 text-[rgb(var(--text-2))]" />
+          {/* Metadata/Sources */}
+          {!isUser && !message.isStreaming && message.sources && message.sources.length > 0 && (
+             <div className="pt-2">
+                <SourcesPanel sources={message.sources} />
+             </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

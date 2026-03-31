@@ -4,6 +4,7 @@ Switch with LLM_PROVIDER=gemini|ollama in .env. No code changes needed.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import AsyncIterator
 
@@ -21,8 +22,14 @@ def get_llm(for_code: bool = False) -> BaseChatModel:
     settings = get_settings()
 
     if settings.llm_provider == "gemini":
+        model_name = settings.gemini_model
+        if not model_name.startswith("models/"):
+            model_name = f"models/{model_name}"
+
+        # We rely on the GOOGLE_API_VERSION environment variable 
+        # (set in docker-compose.yml or .env) to control v1 vs v1beta.
         return ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
+            model=model_name,
             google_api_key=settings.gemini_api_key,
             temperature=0.1,
             streaming=True,

@@ -2,97 +2,74 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-/* ── Highlight.js syntax theme ─────────────────────── */
 
 @layer base {
   :root {
-    --bg: 250 250 252;
-    --surface: 255 255 255;
-    --surface-2: 245 245 247;
-    --border: 226 226 232;
-    --text: 17 17 17;
-    --text-2: 100 100 110;
-    --brand: 99 102 241;
+    --bg: 255 255 255;
+    --surface: 250 250 252;
+    --surface-2: 242 242 247;
+    --border: 229 231 235;
+    --text: 17 24 39;
+    --text-2: 107 114 128;
+    --brand: 79 70 229;
+    --brand-hover: 67 56 202;
   }
 
   .dark {
-    --bg: 13 13 15;
-    --surface: 22 22 26;
-    --surface-2: 30 30 36;
-    --border: 42 42 52;
-    --text: 240 240 245;
-    --text-2: 150 150 165;
-    --brand: 129 140 248;
+    --bg: 3 7 18;
+    --surface: 17 24 39;
+    --surface-2: 31 41 55;
+    --border: 31 41 55;
+    --text: 243 244 246;
+    --text-2: 156 163 175;
+    --brand: 99 102 241;
+    --brand-hover: 129 140 248;
   }
-
-  * { @apply border; }
 
   body {
     background-color: rgb(var(--bg));
     color: rgb(var(--text));
     @apply font-sans antialiased;
   }
+
+  ::selection {
+    background-color: rgb(var(--brand) / 0.1);
+    color: rgb(var(--brand));
+  }
+
+  * {
+    border-color: rgb(var(--border));
+  }
 }
 
 @layer components {
-  /* Prose markdown rendering */
   .prose-rag-system {
-    @apply text-sm leading-7;
+    @apply text-[15px] leading-relaxed;
     color: rgb(var(--text));
   }
-  .prose-rag-system h1, .prose-rag-system h2, .prose-rag-system h3 {
-    @apply font-semibold mt-4 mb-2;
-    color: rgb(var(--text));
-  }
-  .prose-rag-system h1 { @apply text-xl; }
-  .prose-rag-system h2 { @apply text-lg; }
-  .prose-rag-system h3 { @apply text-base; }
-  .prose-rag-system p { @apply mb-3; }
-  .prose-rag-system ul { @apply list-disc list-inside mb-3 space-y-1; }
-  .prose-rag-system ol { @apply list-decimal list-inside mb-3 space-y-1; }
-  .prose-rag-system blockquote {
-    @apply border-l-4 pl-4 italic my-3;
-    border-color: rgb(var(--brand));
-    color: rgb(var(--text-2));
-  }
-  .prose-rag-system code:not(pre code) {
-    @apply font-mono text-xs px-1.5 py-0.5 rounded;
-    background: rgb(var(--surface-2));
-    color: rgb(var(--brand));
-  }
+  
   .prose-rag-system pre {
-    @apply rounded-xl overflow-x-auto my-3 text-sm;
+    @apply rounded-xl overflow-x-auto my-6 p-4 shadow-sm border border-white/5;
     background: #0d1117 !important;
   }
-  .prose-rag-system table {
-    @apply w-full text-sm my-4 border-collapse;
-  }
-  .prose-rag-system th {
-    @apply px-3 py-2 font-semibold text-left;
-    background: rgb(var(--surface-2));
-    border: 1px solid rgb(var(--border));
-  }
-  .prose-rag-system td {
-    @apply px-3 py-2;
-    border: 1px solid rgb(var(--border));
-  }
-  .prose-rag-system a {
-    color: rgb(var(--brand));
-    @apply underline underline-offset-2;
-  }
 
-  /* Custom scrollbar */
-  .custom-scroll::-webkit-scrollbar { width: 6px; }
+  .custom-scroll::-webkit-scrollbar { width: 5px; }
   .custom-scroll::-webkit-scrollbar-track { background: transparent; }
   .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgb(var(--border));
-    border-radius: 3px;
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full transition-colors hover:bg-gray-400;
   }
 
-  /* Streaming cursor */
-  .streaming-cursor::after {
-    content: "▋";
-    @apply animate-pulse;
-    color: rgb(var(--brand));
+  .glass {
+    @apply bg-white/70 dark:bg-black/40 backdrop-blur-md border border-white/10 dark:border-white/5;
+  }
+  
+  .btn-primary {
+    @apply px-4 py-2.5 bg-brand text-white font-medium rounded-xl transition-all duration-200 
+           hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+           shadow-sm shadow-brand/10;
+  }
+  
+  .card {
+    @apply bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6 shadow-sm;
   }
 }

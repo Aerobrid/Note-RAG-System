@@ -17,7 +17,7 @@ class SearchResult(BaseModel):
     score: float
 
 
-@router.get("/")
+@router.get("")
 async def search(
     q: str = Query(..., description="Search query"),
     collection: Literal["documents", "code", "all"] = "all",

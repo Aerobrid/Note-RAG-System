@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, Square, Paperclip } from "lucide-react";
+import { Send, Square, Sparkles, Command } from "lucide-react";
 import { useRef, useEffect, useState, KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
@@ -13,17 +13,15 @@ interface Props {
 }
 
 const SUGGESTIONS = [
-  "Explain the key concepts from today's lecture",
-  "Find all code examples related to binary trees",
-  "Summarize my notes on neural networks",
-  "What algorithms did I study for dynamic programming?",
+  "Explain today's lecture",
+  "Binary search code",
+  "Summarize key notes",
 ];
 
 export function ChatInput({ onSend, isStreaming, onStop, disabled, placeholder }: Props) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -46,66 +44,76 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, placeholder }
   };
 
   return (
-    <div className="px-4 pb-4 pt-2">
-      {/* Suggestion chips — only shown when input is empty */}
-      {!value && (
-        <div className="flex flex-wrap gap-2 mb-3">
+    <div className="px-6 pb-8 pt-2">
+      <div className="flex flex-wrap gap-2 mb-4 justify-center">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
               onClick={() => setValue(s)}
-              className="text-xs px-3 py-1.5 rounded-full border border-[rgb(var(--border))] text-[rgb(var(--text-2))] hover:text-[rgb(var(--text))] hover:border-brand-600/40 transition-colors"
+              className="text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-2))] hover:text-brand hover:border-brand/30 hover:bg-brand/5 transition-all"
             >
               {s}
             </button>
           ))}
-        </div>
-      )}
+      </div>
 
-      {/* Input box */}
-      <div className={cn(
-        "flex items-end gap-2 rounded-2xl border p-3 transition-colors",
-        "bg-[rgb(var(--surface))] border-[rgb(var(--border))]",
-        "focus-within:border-brand-600/60"
-      )}>
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onKey}
-          rows={1}
-          disabled={disabled}
-          placeholder={placeholder ?? "Ask anything about your notes..."}
-          className="flex-1 resize-none bg-transparent text-sm text-[rgb(var(--text))] placeholder:text-[rgb(var(--text-2))] outline-none min-h-[24px] max-h-[200px] leading-6"
-        />
+      <div className="relative group max-w-3xl mx-auto">
+        {/* Glow effect */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-brand/20 to-brand/10 rounded-2xl blur opacity-20 group-focus-within:opacity-100 transition duration-1000"></div>
+        
+        <div className={cn(
+          "relative flex items-end gap-2 rounded-2xl border p-4 transition-all duration-300",
+          "bg-[rgb(var(--surface))] border-[rgb(var(--border))] shadow-xl shadow-black/5",
+          "focus-within:border-brand/40 focus-within:ring-4 focus-within:ring-brand/5"
+        )}>
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={onKey}
+            rows={1}
+            disabled={disabled}
+            placeholder={placeholder ?? "Query your knowledge base..."}
+            className="flex-1 resize-none bg-transparent text-[14px] text-[rgb(var(--text))] placeholder:text-[rgb(var(--text-2))] outline-none min-h-[24px] max-h-[200px] leading-relaxed custom-scroll"
+          />
 
-        <div className="flex items-center gap-1.5">
-          {isStreaming ? (
-            <button
-              onClick={onStop}
-              className="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors"
-            >
-              <Square className="w-3.5 h-3.5 fill-red-400" />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!value.trim() || disabled}
-              className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                value.trim() && !disabled
-                  ? "bg-brand-600 text-white hover:bg-brand-700"
-                  : "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))] cursor-not-allowed"
-              )}
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <div className="flex items-center gap-2 pb-0.5">
+            {isStreaming ? (
+              <button
+                onClick={onStop}
+                className="w-8 h-8 rounded-xl bg-red-500 text-white hover:bg-red-600 flex items-center justify-center transition-all shadow-sm"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={!value.trim() || disabled}
+                className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center transition-all shadow-sm",
+                  value.trim() && !disabled
+                    ? "bg-brand text-white hover:bg-brand-hover hover:scale-105 active:scale-95"
+                    : "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))] opacity-40 cursor-not-allowed"
+                )}
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      <p className="text-center text-[10px] text-[rgb(var(--text-2))] mt-2">
-        Shift+Enter for new line · answers grounded in your notes only
-      </p>
+      
+      <div className="flex items-center justify-center gap-4 mt-4 opacity-40">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--text-2))]">
+           <Command className="w-3 h-3" />
+           <span>Return to Send</span>
+        </div>
+        <div className="w-1 h-1 rounded-full bg-[rgb(var(--text-2))]" />
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--text-2))]">
+           <Sparkles className="w-3 h-3" />
+           <span>AI Grounded</span>
+        </div>
+      </div>
     </div>
   );
 }

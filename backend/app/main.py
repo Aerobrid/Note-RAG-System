@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
         description="Personal RAG knowledge engine for college notes and code.",
         version="1.0.0",
         lifespan=lifespan,
+        redirect_slashes=False,
     )
 
     app.add_middleware(

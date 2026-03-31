@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
     stream: bool = True
 
 
-@router.post("/")
+@router.post("")
 async def chat(req: ChatRequest):
     history = [{"role": m.role, "content": m.content} for m in req.history]
 
