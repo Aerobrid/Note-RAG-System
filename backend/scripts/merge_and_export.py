@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 
+from unsloth import FastLanguageModel
+
 ROOT = Path(__file__).parent.parent.parent
 
 def main():
@@ -28,7 +30,6 @@ def main():
     print(f"Base model      : {base_model}")
     print(f"Output          : {output_dir}")
 
-    from unsloth import FastLanguageModel
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=str(lora_path),
         max_seq_length=2048,

@@ -12,11 +12,16 @@ import json
 from pathlib import Path
 from typing import Callable
 
+import torch
+
+from unsloth import FastLanguageModel
+from datasets import Dataset
+from trl import SFTTrainer
+from transformers import TrainingArguments
 
 def _check_gpu():
     """Verify CUDA is available before attempting fine-tuning."""
     try:
-        import torch
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA GPU not detected. Fine-tuning requires an NVIDIA GPU.")
         gpu_name = torch.cuda.get_device_name(0)
@@ -61,7 +66,6 @@ def run_finetune(
 
     # ── 1. Load Unsloth model ──────────────────────────────────────────────
     log(f"Loading {base_model} with 4-bit quantization...", 5)
-    from unsloth import FastLanguageModel
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=base_model,
@@ -86,8 +90,6 @@ def run_finetune(
 
     # ── 3. Prepare Dataset ─────────────────────────────────────────────────
     log("Preparing dataset...", 15)
-    from datasets import Dataset
-
     alpaca_prompt = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
@@ -119,8 +121,6 @@ def run_finetune(
 
     # ── 4. Train ───────────────────────────────────────────────────────────
     log("Starting training...", 25)
-    from trl import SFTTrainer
-    from transformers import TrainingArguments
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -184,7 +184,6 @@ def run_finetune(
 
 def _is_bfloat16_supported() -> bool:
     try:
-        import torch
         return torch.cuda.is_bf16_supported()
     except Exception:
         return False

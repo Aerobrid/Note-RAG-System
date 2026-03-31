@@ -10,6 +10,8 @@ from typing import AsyncIterator
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langchain_core.outputs import ChatGeneration
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 from app.core.config import get_settings
 
@@ -19,7 +21,6 @@ def get_llm(for_code: bool = False) -> BaseChatModel:
     settings = get_settings()
 
     if settings.llm_provider == "gemini":
-        from langchain_google_genai import ChatGoogleGenerativeAI
         return ChatGoogleGenerativeAI(
             model=settings.gemini_model,
             google_api_key=settings.gemini_api_key,
@@ -29,7 +30,6 @@ def get_llm(for_code: bool = False) -> BaseChatModel:
         )
 
     elif settings.llm_provider == "ollama":
-        from langchain_ollama import ChatOllama
         model = settings.ollama_code_model if for_code else settings.ollama_model
         return ChatOllama(
             model=model,

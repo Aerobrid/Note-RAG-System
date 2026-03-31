@@ -157,21 +157,22 @@ export default function UploadPage() {
               </div>
             ))}
           </div>
-
-          <button
-            onClick={handleUpload}
-            disabled={uploading || pendingCount === 0}
-            className={cn(
-              "w-full mt-2 py-2.5 rounded-xl text-sm font-medium transition-colors",
-              pendingCount > 0 && !uploading
-                ? "bg-brand-600 text-white hover:bg-brand-700"
-                : "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))] cursor-not-allowed"
-            )}
-          >
-            {uploading ? "Uploading & indexing..." : `Upload ${pendingCount} file${pendingCount !== 1 ? "s" : ""}`}
-          </button>
         </div>
       )}
+
+      {/* Always show upload button */}
+      <button
+        onClick={handleUpload}
+        disabled={uploading || pendingCount === 0}
+        className={cn(
+          "w-full mt-6 py-2.5 rounded-xl text-sm font-medium transition-colors",
+          pendingCount > 0 && !uploading
+            ? "bg-brand-600 text-white hover:bg-brand-700"
+            : "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))] cursor-not-allowed"
+        )}
+      >
+        {uploading ? "Uploading & indexing..." : `Upload ${pendingCount} file${pendingCount !== 1 ? "s" : ""}`}
+      </button>
     </div>
   );
 }

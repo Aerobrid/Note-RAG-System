@@ -8,6 +8,11 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
+from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import PdfFormatOption
+
 CODE_EXTENSIONS = {
     ".py": "python", ".js": "javascript", ".ts": "typescript",
     ".jsx": "jsx", ".tsx": "tsx", ".java": "java", ".c": "c",
@@ -56,10 +61,6 @@ def parse_file(file_path: str | Path) -> ParsedDocument:
 
 def _parse_document(path: Path) -> ParsedDocument:
     """Use Docling for rich document parsing (PDF, DOCX, PPTX)."""
-    from docling.document_converter import DocumentConverter
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.document_converter import PdfFormatOption
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = True

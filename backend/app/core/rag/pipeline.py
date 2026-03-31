@@ -98,9 +98,8 @@ def retrieve_docs(state: RAGState) -> RAGState:
 
 def rerank_docs(state: RAGState) -> RAGState:
     """Cross-encoder reranking of candidates."""
-    CODE_SYSTEM_PROMPT = """You are a code-aware study assistant with access to the user's code files.
-
     # Build context string with citations
+    reranked = rerank(state["query"], state["candidates"])
     context_parts = []
     sources = []
     for i, doc in enumerate(reranked, 1):
@@ -144,7 +143,7 @@ def generate_response(state: RAGState) -> RAGState:
 
 
 def should_retry(state: RAGState) -> Literal["end", "retry"]:
-    """Simple hallucination check - retry if response says 'I don't know' but we have context."""
+    '''Simple hallucination check - retry if response says "I don't know" but we have context.'''
     retry_count = state.get("retry_count", 0)
     if retry_count >= 1:
         return "end"

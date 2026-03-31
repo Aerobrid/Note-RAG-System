@@ -1,4 +1,4 @@
-// In dev: Next.js rewrites /api/* → backend (next.config.js)
+// In dev: Next.js rewrites /api/* -> backend (next.config.js)
 // In Docker: set NEXT_PUBLIC_API_URL=http://localhost:8000
 const API = process.env.NEXT_PUBLIC_API_URL
   ? `${process.env.NEXT_PUBLIC_API_URL}/api`
