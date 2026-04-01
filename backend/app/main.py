@@ -2,6 +2,7 @@
 RAG System Backend — FastAPI entry point
 """
 from contextlib import asynccontextmanager
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,11 +17,19 @@ async def lifespan(app: FastAPI):
     """Startup: pre-load models and start watchdog. Shutdown: clean up."""
     settings = get_settings()
 
-    print("[startup] Pre-loading embedding model...")
-    get_embedder()
-
-    print("[startup] Pre-loading reranker model...")
-    get_reranker()
+    print("[startup] Scheduling model preload in background...")
+    try:
+        loop = asyncio.get_running_loop()
+        # Load models in threadpool so startup isn't blocked by heavy model downloads
+        loop.run_in_executor(None, get_embedder)
+        loop.run_in_executor(None, get_reranker)
+    except RuntimeError:
+        # If no running loop (very early), fall back to synchronous loads
+        try:
+            get_embedder()
+            get_reranker()
+        except Exception:
+            pass
 
     print("[startup] Starting file watchdog...")
     start_watchdog(settings.notes_dir)

@@ -1,6 +1,8 @@
-// All API calls go through the Next.js proxy (/api/* -> backend)
-// This ensures we don't have CORS issues and can handle larger body sizes via middleware config.
-const API = "/api";
+// API base: use NEXT_PUBLIC_API_URL when set (direct backend), otherwise proxy via Next `/api`.
+const publicUrl = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_URL : undefined;
+const API = publicUrl && publicUrl.length > 0
+  ? `${publicUrl.replace(/\/$/, "")}/api`
+  : "/api";
 
 export interface StreamChunk {
   type: "meta" | "token" | "done";

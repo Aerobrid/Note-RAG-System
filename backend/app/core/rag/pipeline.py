@@ -267,10 +267,15 @@ async def stream_rag_pipeline(
     yield f"data: {meta}\n\n"
 
     # Stream tokens
-    async for chunk in llm.astream(messages):
-        token = chunk.content
-        if token:
-            payload = json.dumps({"type": "token", "content": token})
-            yield f"data: {payload}\n\n"
+    try:
+        async for chunk in llm.astream(messages):
+            token = chunk.content
+            if token:
+                payload = json.dumps({"type": "token", "content": token})
+                yield f"data: {payload}\n\n"
+    except Exception as e:
+        # Send an error chunk so proxies/clients receive a clean SSE message
+        err = json.dumps({"type": "error", "message": str(e)})
+        yield f"data: {err}\n\n"
 
     yield "data: [DONE]\n\n"
