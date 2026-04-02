@@ -30,16 +30,23 @@ def get_reranker() -> CrossEncoder:
 
 
 def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
-    """Embed a list of texts. Returns list of float vectors."""
-    model = get_embedder()
-    # BGE models benefit from an instruction prefix for queries
-    embeddings = model.encode(
-        texts,
-        batch_size=batch_size,
-        normalize_embeddings=True,
-        show_progress_bar=len(texts) > 50,
-    )
-    return embeddings.tolist()
+    """Embed a list of texts. Runs encoding in a thread to avoid blocking the event loop.
+
+    This function is async-friendly: call it with `await embed_texts(...)`.
+    """
+    import asyncio
+
+    def _encode():
+        model = get_embedder()
+        embeddings = model.encode(
+            texts,
+            batch_size=batch_size,
+            normalize_embeddings=True,
+            show_progress_bar=len(texts) > 50,
+        )
+        return embeddings.tolist()
+
+    return asyncio.to_thread(_encode)
 
 
 def embed_query(query: str) -> list[float]:

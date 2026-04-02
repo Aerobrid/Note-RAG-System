@@ -56,7 +56,7 @@ async def ingest_file_async(file_path: str) -> dict:
         # 3. Embed
         _ingestion_status[file_id]["status"] = "embedding"
         texts = [c.text for c in chunks]
-        embeddings = embed_texts(texts)
+        embeddings = await embed_texts(texts)
 
         # 4. Store - remove old chunks first (idempotent re-ingest)
         delete_by_source(str(path))
@@ -110,19 +110,31 @@ async def upload_files(
             results.append({"file": upload.filename, "error": f"Unsupported format: {suffix}"})
             continue
 
-        upload_bytes = await upload.read()
-        upload_hash = hashlib.sha256(upload_bytes).hexdigest()
+        # Stream-upload to disk in chunks to avoid buffering entire file in memory
+        hash_obj = hashlib.sha256()
+        dest = notes_dir / upload.filename
+        chunk_size = 1024 * 1024  # 1MB
+        async with aiofiles.open(dest, "wb") as f:
+            while True:
+                chunk = await upload.read(chunk_size)
+                if not chunk:
+                    break
+                await f.write(chunk)
+                hash_obj.update(chunk)
+
+        upload_hash = hash_obj.hexdigest()
         if upload_hash in existing_hashes:
+            # Remove the file we just wrote since it's a duplicate
+            try:
+                dest.unlink()
+            except Exception:
+                pass
             results.append({
                 "file": upload.filename,
                 "status": "skipped",
                 "reason": f"Duplicate of {existing_hashes[upload_hash]} by content hash"
             })
             continue
-
-        dest = notes_dir / upload.filename
-        async with aiofiles.open(dest, "wb") as f:
-            await f.write(upload_bytes)
 
         # Ingest in background
         background_tasks.add_task(ingest_file_async, str(dest))

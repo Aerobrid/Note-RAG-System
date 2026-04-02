@@ -1,5 +1,8 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_API_URL
+# Ensure NEXT_PUBLIC_API_URL is available at build time for client bundles
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 # Copy all files for install and build
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1

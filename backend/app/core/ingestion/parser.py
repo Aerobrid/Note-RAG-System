@@ -76,16 +76,86 @@ def _parse_document(path: Path) -> ParsedDocument:
                 "title": path.stem,
             },
         )
-    else:
-        # Fallback: treat as plain text
+    # PowerPoint (.pptx) support (lazy import)
+    if suffix == ".pptx":
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            from pptx import Presentation
+
+            prs = Presentation(str(path))
+            parts: list[str] = []
+            for slide in prs.slides:
+                slide_text: list[str] = []
+                for shape in slide.shapes:
+                    try:
+                        if hasattr(shape, "text") and shape.text:
+                            slide_text.append(shape.text.strip())
+                    except Exception:
+                        # ignore shapes we can't read
+                        continue
+                if slide_text:
+                    parts.append("\n".join(slide_text))
+
+            text = "\n\n".join(parts).strip()
+            page_count = len(prs.slides)
+            if not text:
+                # Fall back to plain text read if nothing extracted
+                raise ValueError("No text extracted from pptx")
+
             return ParsedDocument(
-                text=text, source=str(path),
-                doc_type="document", title=path.stem,
+                text=text,
+                source=str(path),
+                doc_type="document",
+                title=path.stem,
+                page_count=page_count,
+                metadata={
+                    "source": str(path),
+                    "filename": path.name,
+                    "file_type": path.suffix.lower(),
+                    "title": path.stem,
+                },
             )
-        except Exception as e:
-            raise ValueError(f"Cannot parse {path.name}: {e}") from e
+        except Exception:
+            # graceful fallback to plain text below
+            pass
+
+    # DOCX support (lazy import)
+    if suffix == ".docx":
+        try:
+            import docx
+
+            doc = docx.Document(str(path))
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
+            text = "\n\n".join(paragraphs)
+            page_count = len(paragraphs)
+            if not text:
+                raise ValueError("No text extracted from docx")
+
+            return ParsedDocument(
+                text=text,
+                source=str(path),
+                doc_type="document",
+                title=path.stem,
+                page_count=page_count,
+                metadata={
+                    "source": str(path),
+                    "filename": path.name,
+                    "file_type": path.suffix.lower(),
+                    "title": path.stem,
+                },
+            )
+        except Exception:
+            # graceful fallback to plain text below
+            pass
+
+    # Fallback: treat as plain text for other types (including .ppt legacy)
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        return ParsedDocument(
+            text=text, source=str(path),
+            doc_type="document", title=path.stem,
+        )
+    except Exception as e:
+        raise ValueError(f"Cannot parse {path.name}: {e}") from e
 
 
 def _parse_code(path: Path) -> ParsedDocument:
