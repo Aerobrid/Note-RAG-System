@@ -17,9 +17,8 @@ def get_chroma_client() -> chromadb.PersistentClient:
     settings = get_settings()
     return chromadb.PersistentClient(
         path=settings.chroma_path,
-        settings=ChromaSettings(anonymized_telemetry=False),
+        settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True),
     )
-
 
 def get_docs_collection() -> chromadb.Collection:
     client = get_chroma_client()
@@ -27,7 +26,6 @@ def get_docs_collection() -> chromadb.Collection:
         name="documents",
         metadata={"hnsw:space": "cosine"},
     )
-
 
 def get_code_collection() -> chromadb.Collection:
     client = get_chroma_client()
@@ -105,13 +103,9 @@ def clear_all() -> None:
     """Wipe out all vector collections."""
     client = get_chroma_client()
     try:
-        client.delete_collection("documents")
-    except Exception:
-        pass
-    try:
-        client.delete_collection("code")
-    except Exception:
-        pass
+        client.reset()
+    except Exception as e:
+        print(f"Error resetting ChromaDB: {e}")
     # Re-create collections to prevent errors on next queries
     get_docs_collection()
     get_code_collection()

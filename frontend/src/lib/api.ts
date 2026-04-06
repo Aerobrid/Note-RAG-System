@@ -154,7 +154,7 @@ export type HealthPayload = {
     sample_models?: string[];
     error?: string;
   };
-  gemini_configured?: boolean;
+  cloud_configured?: boolean;
 };
 
 export async function getHealth(): Promise<HealthPayload> {

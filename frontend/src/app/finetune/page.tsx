@@ -56,7 +56,7 @@ export default function FinetunePage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold">Fine-tune on Your Notes</h1>
         <p className="text-sm text-[rgb(var(--text-2))] mt-1">
-          Train a small LLM (Llama 3.2 3B) on your own notes using QLoRA.
+          Train a small LLM (from OLLAMA_MODEL) on your own notes using QLoRA.
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 """
-LLM Provider - single interface for Gemini API and Ollama.
-Switch with LLM_PROVIDER=gemini|ollama in .env. No code changes needed.
+LLM Provider - single interface for Cloud APIs and Ollama.
+Switch with LLM_PROVIDER=cloud|ollama in .env. No code changes needed.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import AsyncIterator
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langchain_core.outputs import ChatGeneration
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models import init_chat_model
 from langchain_ollama import ChatOllama
 
 from app.core.config import get_settings
@@ -21,19 +21,31 @@ def get_llm(for_code: bool = False) -> BaseChatModel:
     """Return the configured LLM. Set for_code=True to use the code-specialist model."""
     settings = get_settings()
 
-    if settings.llm_provider == "gemini":
-        model_name = settings.gemini_model
-        if not model_name.startswith("models/"):
-            model_name = f"models/{model_name}"
+    if settings.llm_provider == "cloud":
+        model_name = settings.cloud_model
+        
+        # Temporarily inject generalized API key into standard env vars so init_chat_model routes perfectly
+        key = settings.cloud_api_key
+        provider_name = None
+        
+        if "gpt" in model_name or "o1" in model_name:
+            os.environ["OPENAI_API_KEY"] = key
+            provider_name = "openai"
+        elif "claude" in model_name:
+            os.environ["ANTHROPIC_API_KEY"] = key
+            provider_name = "anthropic"
+        else:
+            # Fallback wrapper for Google Gemini
+            os.environ["GOOGLE_API_KEY"] = key
+            provider_name = "google-genai"
+            if "gemini" in model_name and not model_name.startswith("models/"):
+                 model_name = f"models/{model_name}"
 
-        # We rely on the GOOGLE_API_VERSION environment variable 
-        # (set in docker-compose.yml or .env) to control v1 vs v1beta.
-        return ChatGoogleGenerativeAI(
+        return init_chat_model(
             model=model_name,
-            google_api_key=settings.gemini_api_key,
+            model_provider=provider_name,
             temperature=0.1,
-            streaming=True,
-            convert_system_message_to_human=True,
+            streaming=True
         )
 
     elif settings.llm_provider == "ollama":
@@ -45,7 +57,7 @@ def get_llm(for_code: bool = False) -> BaseChatModel:
             streaming=True,
         )
 
-    raise ValueError(f"Unknown LLM_PROVIDER: {settings.llm_provider!r}. Use 'gemini' or 'ollama'.")
+    raise ValueError(f"Unknown LLM_PROVIDER: {settings.llm_provider!r}. Use 'cloud' or 'ollama'.")
 
 
 def build_messages(

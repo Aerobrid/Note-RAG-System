@@ -93,7 +93,7 @@ def create_app() -> FastAPI:
         if settings.llm_provider == "ollama":
             payload["ollama"] = await asyncio.to_thread(_ollama_reachable, settings.ollama_base_url)
         else:
-            payload["gemini_configured"] = bool(settings.gemini_api_key.strip())
+            payload["cloud_configured"] = bool(settings.cloud_api_key.strip())
         return payload
 
     return app

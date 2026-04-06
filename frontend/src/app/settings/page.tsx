@@ -22,7 +22,7 @@ export default function SettingsPage() {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     void getHealth().then((h) => {
       setHealth(h);
-      if (h.llm_provider) setLlmProvider(h.llm_provider as "gemini" | "ollama");
+      if (h.llm_provider) setLlmProvider(h.llm_provider as "cloud" | "ollama");
       if (t0) setLatencyMs(Math.round(performance.now() - t0));
       setLoading(false);
     });
@@ -39,9 +39,9 @@ export default function SettingsPage() {
 
   const PROVIDERS = [
     {
-      id: "gemini",
-      label: "Gemini",
-      desc: "Cloud API. Set GEMINI_API_KEY in .env.",
+      id: "cloud",
+      label: "Cloud Provider",
+      desc: "Remote API. Set CLOUD_API_KEY and CLOUD_MODEL in .env.",
       badge: "API",
       badgeColor: "bg-green-500/10 text-green-400",
     },
@@ -96,14 +96,14 @@ export default function SettingsPage() {
                   : `not reachable — ${health.ollama.error ?? "check URL and that Ollama is running"}`}
               </p>
             )}
-            {!loading && health?.llm_provider === "gemini" && (
+            {!loading && health?.llm_provider === "cloud" && (
               <p
                 className={cn(
                   "text-[10px] mt-1.5",
-                  health.gemini_configured ? "text-green-400/90" : "text-amber-500/90"
+                  health.cloud_configured ? "text-green-400/90" : "text-amber-500/90"
                 )}
               >
-                Gemini API key: {health.gemini_configured ? "loaded" : "missing — set GEMINI_API_KEY"}
+                Cloud API key: {health.cloud_configured ? "loaded" : "missing — set CLOUD_API_KEY"}
               </p>
             )}
           </div>
@@ -176,8 +176,9 @@ export default function SettingsPage() {
         <h2 className="text-sm font-medium mb-3 text-[rgb(var(--text-2))] uppercase tracking-wider">Environment</h2>
         <div className="border border-[rgb(var(--border))] rounded-2xl p-4 bg-[rgb(var(--surface))] font-mono text-xs space-y-1.5 text-[rgb(var(--text-2))]">
           {[
-            ["LLM_PROVIDER", "gemini | ollama"],
-            ["GEMINI_API_KEY", "if using Gemini"],
+            ["LLM_PROVIDER", "cloud | ollama"],
+            ["CLOUD_API_KEY", "your provider API key"],
+            ["CLOUD_MODEL", "your provider model ID"],
             ["OLLAMA_BASE_URL", "http://localhost:11434"],
             ["NOTES_DIR", "./notes"],
             ["CHROMA_PATH", "./chroma_db"],

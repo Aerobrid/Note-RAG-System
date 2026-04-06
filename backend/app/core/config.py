@@ -6,10 +6,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # LLM
-    llm_provider: str = "gemini"          # "gemini" | "ollama"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
-    google_api_version: str = "v1"       # "v1" or "v1beta"
+    llm_provider: str = "cloud"          # "cloud" | "ollama"
+    cloud_api_key: str = ""
+    cloud_model: str = "gemini-1.5-flash"
+    cloud_api_version: str = "v1"       # typically for google models
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
     ollama_code_model: str = "qwen2.5-coder:7b"

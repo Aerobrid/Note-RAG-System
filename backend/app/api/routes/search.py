@@ -32,13 +32,15 @@ async def search(
     """
 
     def _run():
-        embedding = embed_query(q)
         if collection == "all":
-            doc_results = query_collection(embedding, "documents", n_results=top_k)
-            code_results = query_collection(embedding, "code", n_results=top_k)
+            doc_emb = embed_query(q, for_code=False)
+            code_emb = embed_query(q, for_code=True)
+            doc_results = query_collection(doc_emb, "documents", n_results=top_k)
+            code_results = query_collection(code_emb, "code", n_results=top_k)
             results = doc_results + code_results
         else:
-            results = query_collection(embedding, collection, n_results=top_k)
+            emb = embed_query(q, for_code=(collection == "code"))
+            results = query_collection(emb, collection, n_results=top_k)
         if rerank_results and results:
             results = rerank(q, results, top_k=top_k)
         return results
@@ -71,7 +73,7 @@ async def search_code(
     """Search only code files, with optional language filter."""
 
     def _run():
-        embedding = embed_query(q)
+        embedding = embed_query(q, for_code=True)
         where = {"language": language} if language else None
         results = query_collection(embedding, "code", n_results=top_k * 2, where=where)
         if results:

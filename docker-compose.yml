@@ -1,6 +1,6 @@
 # Note RAG — backend + frontend. LLM: Gemini (API) or Ollama (local).
 #
-# Quick start (Gemini): copy .env.example → .env, set GEMINI_API_KEY, then:
+# Quick start (Cloud): copy .env.example → .env, set CLOUD_API_KEY, then:
 #   docker compose up -d --build
 #
 # Ollama on your machine (Windows / Mac Docker Desktop): set in .env:
@@ -16,6 +16,14 @@ services:
   backend:
     build: ./backend
     container_name: rag-system-backend
+    # Comment the below block to disable NVIDIA GPU acceleration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     ports:
       - "8000:8000"
     extra_hosts:
@@ -25,13 +33,15 @@ services:
       - ./chroma_db:/app/chroma_db
       - ./finetuned_model:/app/finetuned_model
     environment:
-      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
-      - GOOGLE_API_VERSION=${GOOGLE_API_VERSION:-v1}
+      - LLM_PROVIDER=${LLM_PROVIDER:-cloud}
+      - CLOUD_API_KEY=${CLOUD_API_KEY}
+      - CLOUD_MODEL=${CLOUD_MODEL:-gemini-1.5-flash}
+      - CLOUD_API_VERSION=${CLOUD_API_VERSION:-v1}
       - ANONYMIZED_TELEMETRY=False
       # Host Ollama default; use http://ollama:11434 when --profile ollama
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_CODE_MODEL=${OLLAMA_CODE_MODEL}
       - CHROMA_PATH=/app/chroma_db
       - NOTES_DIR=/app/notes
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
@@ -59,11 +69,18 @@ services:
     restart: unless-stopped
 
   # docker compose --profile ollama up -d --build   (+ set OLLAMA_BASE_URL=http://ollama:11434)
-  # Add a GPU device block under this service on Linux if you use NVIDIA.
   ollama:
     profiles: ["ollama"]
     image: ollama/ollama:latest
     container_name: rag-system-ollama
+    # Comment the below block to disable NVIDIA GPU acceleration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     ports:
       - "11434:11434"
     volumes:

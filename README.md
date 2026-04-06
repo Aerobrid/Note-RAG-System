@@ -25,12 +25,12 @@ This software runs a Dual-Embedding dynamic routing pipeline that intelligently 
 
 This ecosystem supports either proprietary high-end Cloud APIs or completely localized hardware accelerated endpoints via Ollama. Navigate to the local `.env` and set your preferred setup.
 
-### Option A: Gemini (Cloud Default)
-Set the specific LLM variables in your `.env`.
+### Option A: Cloud Provider (OpenAI, Anthropic, Google)
+Set the explicit Cloud variables in your `.env` to route to any major provider.
 ```env
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=YOUR_GEMINI_KEY
-GEMINI_MODEL=gemini-2.5-flash # or gemini-exp
+LLM_PROVIDER=cloud
+CLOUD_API_KEY=YOUR_PROVIDER_API_KEY
+CLOUD_MODEL=gemini-2.5-flash # e.g., gpt-4o, claude-3-5-sonnet-20241022
 ```
 
 ### Option B: Ollama (100% Local & Private)

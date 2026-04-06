@@ -54,6 +54,8 @@ function getIcon(filename: string) {
 export default function UploadPage() {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [purgeDialogStatus, setPurgeDialogStatus] = useState<"hidden" | "confirm" | "success" | "error">("hidden");
+  const [purgeError, setPurgeError] = useState("");
 
   const onDrop = useCallback((accepted: File[]) => {
     const entries: FileEntry[] = accepted.map((f) => ({ file: f, status: "pending" }));
@@ -100,18 +102,19 @@ export default function UploadPage() {
 
   const removeDone = () => setFiles((prev) => prev.filter((f) => f.status !== "done"));
   
-  const handlePurge = async () => {
-    if (window.confirm("WARNING: This will permanently wipe all uploaded files and index databases from the system. Are you sure?")) {
-      setUploading(true);
-      try {
-        await clearIndex();
-        setFiles([]);
-        alert("Database successfully purged!");
-      } catch (err: any) {
-        alert("Failed to purge database: " + err.message);
-      } finally {
-        setUploading(false);
-      }
+  const triggerPurge = () => setPurgeDialogStatus("confirm");
+
+  const executePurge = async () => {
+    setUploading(true);
+    try {
+      await clearIndex();
+      setFiles([]);
+      setPurgeDialogStatus("success");
+    } catch (err: any) {
+      setPurgeError(err.message);
+      setPurgeDialogStatus("error");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -126,7 +129,7 @@ export default function UploadPage() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Add files</h1>
         <p className="text-sm text-[rgb(var(--text-2))] max-w-xl leading-relaxed">
-          PDF, Office, text, and source files are chunked and embedded into the local vector index.
+          PDF, PPTX, DOCX, text, and source files are chunked and embedded into the local vector index.
         </p>
       </div>
 
@@ -188,7 +191,7 @@ export default function UploadPage() {
             </div>
             
             <button
-              onClick={handlePurge}
+              onClick={triggerPurge}
               disabled={uploading}
               className="md:col-span-2 mt-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl p-4 border border-red-500/20 text-center font-bold text-[13px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
@@ -306,6 +309,80 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
+
+      {/* Purge Modal */}
+      {purgeDialogStatus !== "hidden" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {purgeDialogStatus === "confirm" && (
+              <>
+                <div className="flex justify-center mb-6">
+                  <div className="p-4 bg-red-500/10 text-red-500 rounded-full border border-red-500/20">
+                    <AlertCircle className="w-10 h-10" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-center mb-3">Are you sure?</h2>
+                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
+                  This will permanently wipe all uploaded files and index databases from the system. This cannot be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setPurgeDialogStatus("hidden")}
+                    className="flex-1 py-3.5 rounded-2xl bg-[rgb(var(--surface-2))] hover:bg-[rgb(var(--surface-2))/80] text-[14px] font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executePurge}
+                    className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-[14px] font-bold transition-all shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"
+                  >
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Yes, Purge
+                  </button>
+                </div>
+              </>
+            )}
+            {purgeDialogStatus === "success" && (
+              <>
+                <div className="flex justify-center mb-6">
+                  <div className="p-4 bg-green-500/10 text-green-500 rounded-full border border-green-500/20">
+                    <CheckCircle2 className="w-10 h-10" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-center mb-3">Successfully Purged</h2>
+                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
+                  Your database and raw files have been completely wiped.
+                </p>
+                <button
+                  onClick={() => setPurgeDialogStatus("hidden")}
+                  className="w-full py-3.5 rounded-2xl bg-brand hover:bg-brand-hover text-white text-[14px] font-bold transition-all shadow-lg"
+                >
+                  Continue
+                </button>
+              </>
+            )}
+            {purgeDialogStatus === "error" && (
+              <>
+                <div className="flex justify-center mb-6">
+                  <div className="p-4 bg-red-500/10 text-red-500 rounded-full border border-red-500/20">
+                    <XCircle className="w-10 h-10" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-center mb-3 text-red-500">Purge Failed</h2>
+                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
+                  {purgeError || "An unknown error occurred while trying to format the databases."}
+                </p>
+                <button
+                  onClick={() => setPurgeDialogStatus("hidden")}
+                  className="w-full py-3.5 rounded-2xl bg-[rgb(var(--surface-2))] hover:bg-[rgb(var(--surface-2))/80] text-[14px] font-bold transition-all"
+                >
+                  Close
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -38,7 +38,7 @@ interface AppState {
   sidebarOpen: boolean;
 
   // LLM provider (reflected from backend env)
-  llmProvider: "gemini" | "ollama";
+  llmProvider: "cloud" | "ollama";
 
   // Actions
   createSession: () => string;
@@ -48,7 +48,7 @@ interface AppState {
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
   setStreaming: (v: boolean) => void;
   setSidebarOpen: (v: boolean) => void;
-  setLlmProvider: (v: "gemini" | "ollama") => void;
+  setLlmProvider: (v: "cloud" | "ollama") => void;
   getActiveSession: () => ChatSession | undefined;
   clearSession: (id: string) => void;
 }
@@ -64,7 +64,7 @@ export const useAppStore = create<AppState>()(
       activeSessionId: null,
       isStreaming: false,
       sidebarOpen: true,
-      llmProvider: "gemini",
+      llmProvider: "cloud",
 
       createSession: () => {
         const id = generateId();
