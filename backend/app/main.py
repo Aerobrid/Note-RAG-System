@@ -3,11 +3,14 @@ RAG System Backend — FastAPI entry point
 """
 from contextlib import asynccontextmanager
 import asyncio
+import json
+import urllib.error
+import urllib.request
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.core.ingestion.embedder import get_embedder, get_reranker
+from app.core.ingestion.embedder import get_embedder, get_reranker, get_code_embedder
 from app.api.routes import chat, ingest, search, finetune
 from app.api.routes.ingest import start_watchdog, stop_watchdog
 
@@ -22,11 +25,13 @@ async def lifespan(app: FastAPI):
         loop = asyncio.get_running_loop()
         # Load models in threadpool so startup isn't blocked by heavy model downloads
         loop.run_in_executor(None, get_embedder)
+        loop.run_in_executor(None, get_code_embedder)
         loop.run_in_executor(None, get_reranker)
     except RuntimeError:
         # If no running loop (very early), fall back to synchronous loads
         try:
             get_embedder()
+            get_code_embedder()
             get_reranker()
         except Exception:
             pass
@@ -39,6 +44,19 @@ async def lifespan(app: FastAPI):
 
     print("[shutdown] Stopping watchdog...")
     stop_watchdog()
+
+
+def _ollama_reachable(base_url: str) -> dict:
+    """Lightweight check against Ollama's HTTP API (no LLM generation)."""
+    url = base_url.rstrip("/") + "/api/tags"
+    req = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode())
+            names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+            return {"reachable": True, "models_installed": len(names), "sample_models": names[:5]}
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        return {"reachable": False, "error": str(e)[:200]}
 
 
 def create_app() -> FastAPI:
@@ -67,12 +85,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        from app.db.vector_store import get_stats
-        return {
+        """Fast liveness check — no Chroma or embedding load. Optional Ollama reachability."""
+        payload: dict = {
             "status": "ok",
             "llm_provider": settings.llm_provider,
-            "stats": get_stats(),
         }
+        if settings.llm_provider == "ollama":
+            payload["ollama"] = await asyncio.to_thread(_ollama_reachable, settings.ollama_base_url)
+        else:
+            payload["gemini_configured"] = bool(settings.gemini_api_key.strip())
+        return payload
 
     return app
 

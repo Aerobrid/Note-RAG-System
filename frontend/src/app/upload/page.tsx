@@ -2,8 +2,8 @@
 
 import React, { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileText, Code2, CheckCircle2, XCircle, Loader2, FolderOpen, Trash2, FilePlus, AlertCircle, Sparkles } from "lucide-react";
-import { uploadFiles } from "@/lib/api";
+import { Upload, FileText, Code2, CheckCircle2, XCircle, Loader2, FolderOpen, Trash2, FilePlus, AlertCircle } from "lucide-react";
+import { uploadFiles, clearIndex } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type FileStatus = "pending" | "uploading" | "done" | "error";
@@ -30,13 +30,24 @@ const ICON_MAP: Record<string, React.ReactElement> = {
   ".pdf": <FileText className="w-5 h-5 text-red-500" />,
   ".docx": <FileText className="w-5 h-5 text-blue-500" />,
   ".pptx": <FileText className="w-5 h-5 text-orange-500" />,
-  ".py": <Code2 className="w-5 h-5 text-yellow-500" />,
-  ".js": <Code2 className="w-5 h-5 text-yellow-400" />,
-  ".ts": <Code2 className="w-5 h-5 text-blue-500" />,
+  ".txt": <FileText className="w-5 h-5 text-gray-500" />,
+  ".md": <FileText className="w-5 h-5 text-gray-400" />,
 };
+
+// Any code extension will automatically get a Code2 Logo
+const CODE_EXTS = new Set([
+  ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", 
+  ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".sql", ".sh", 
+  ".r", ".m", ".ipynb", ".json"
+]);
 
 function getIcon(filename: string) {
   const ext = "." + filename.split(".").pop()!.toLowerCase();
+  
+  if (CODE_EXTS.has(ext)) {
+    return <Code2 className="w-5 h-5 text-yellow-500" />;
+  }
+  
   return ICON_MAP[ext] ?? <FileText className="w-5 h-5 text-[rgb(var(--text-2))]" />;
 }
 
@@ -88,19 +99,34 @@ export default function UploadPage() {
   };
 
   const removeDone = () => setFiles((prev) => prev.filter((f) => f.status !== "done"));
+  
+  const handlePurge = async () => {
+    if (window.confirm("WARNING: This will permanently wipe all uploaded files and index databases from the system. Are you sure?")) {
+      setUploading(true);
+      try {
+        await clearIndex();
+        setFiles([]);
+        alert("Database successfully purged!");
+      } catch (err: any) {
+        alert("Failed to purge database: " + err.message);
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
   const pendingCount = files.filter((f) => f.status === "pending" || f.status === "error").length;
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full min-h-screen flex flex-col bg-[rgb(var(--bg))]">
       <div className="mb-10 text-center md:text-left">
         <div className="flex items-center gap-2 mb-2 justify-center md:justify-start">
-           <Sparkles className="w-5 h-5 text-brand" />
-           <span className="text-[10px] font-bold text-brand uppercase tracking-[0.2em]">Source Management</span>
+           <Upload className="w-5 h-5 text-brand" />
+           <span className="text-[10px] font-semibold text-[rgb(var(--text-2))] uppercase tracking-[0.2em]">Upload</span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Knowledge Base</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Add files</h1>
         <p className="text-sm text-[rgb(var(--text-2))] max-w-xl leading-relaxed">
-          Upload and index documents to create your custom RAG brain. 
-          Everything stays local and secure.
+          PDF, Office, text, and source files are chunked and embedded into the local vector index.
         </p>
       </div>
 
@@ -160,6 +186,15 @@ export default function UploadPage() {
                  Drop files into <code className="text-brand font-mono font-bold">./notes/</code> to skip the upload UI.
               </p>
             </div>
+            
+            <button
+              onClick={handlePurge}
+              disabled={uploading}
+              className="md:col-span-2 mt-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl p-4 border border-red-500/20 text-center font-bold text-[13px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              Purge Database & Settings
+            </button>
           </div>
         </div>
 

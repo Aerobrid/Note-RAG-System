@@ -1,65 +1,74 @@
+# Note RAG — backend + frontend. LLM: Gemini (API) or Ollama (local).
+#
+# Quick start (Gemini): copy .env.example → .env, set GEMINI_API_KEY, then:
+#   docker compose up -d --build
+#
+# Ollama on your machine (Windows / Mac Docker Desktop): set in .env:
+#   LLM_PROVIDER=ollama
+#   OLLAMA_BASE_URL=http://host.docker.internal:11434
+# Pull models on the host:  ollama pull llama3.2:3b && ollama pull qwen2.5-coder:7b
+#
+# Ollama inside Compose (Linux GPU / isolated stack):
+#   docker compose --profile ollama up -d --build
+#   and in .env:  OLLAMA_BASE_URL=http://ollama:11434
+
 services:
   backend:
     build: ./backend
     container_name: rag-system-backend
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./notes:/app/notes                          # folder to drop your files (data) in
-      - ./chroma_db:/app/chroma_db                  # a persistent vector store (usually on system host device)
-      - ./finetuned_model:/app/finetuned_model      # directory for finetuned models 
+      - ./notes:/app/notes
+      - ./chroma_db:/app/chroma_db
+      - ./finetuned_model:/app/finetuned_model
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
       - GOOGLE_API_VERSION=${GOOGLE_API_VERSION:-v1}
       - ANONYMIZED_TELEMETRY=False
-      - OLLAMA_BASE_URL=http://ollama:11434
+      # Host Ollama default; use http://ollama:11434 when --profile ollama
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - CHROMA_PATH=/app/chroma_db
       - NOTES_DIR=/app/notes
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    ## UNCOMMENT if you do not need backend service depending on ollama container (look below for more notes on this)
-    # depends_on:
-    #   - ollama
+      start_period: 120s
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: rag-system-frontend
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
-##  if you want to pull the latest ollama container and use that instead of ollama on your device,
-##  uncomment out the docker section below (ollama container service)
+  # docker compose --profile ollama up -d --build   (+ set OLLAMA_BASE_URL=http://ollama:11434)
+  # Add a GPU device block under this service on Linux if you use NVIDIA.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    container_name: rag-system-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
 
-#   ollama:
-#     image: ollama/ollama:latest
-#     container_name: rag-system-ollama
-#     ports:
-#       - "11434:11434"
-#     volumes:
-#       - ollama_data:/root/.ollama
-#     deploy:
-#       resources:
-#         reservations:
-#           devices:
-#             - driver: nvidia
-#               count: all
-#               capabilities: [gpu]
-#     restart: unless-stopped
-
-# volumes:
-#   ollama_data:
+volumes:
+  ollama_data:

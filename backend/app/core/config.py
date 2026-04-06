@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     # Embeddings & Reranking
     embed_model: str = "BAAI/bge-large-en-v1.5"
+    code_embed_model: str = "microsoft/codebert-base"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     # Fine-tuning
@@ -28,8 +29,8 @@ class Settings(BaseSettings):
     finetune_epochs: int = 3
     finetune_batch_size: int = 4
 
-    # Server
-    allowed_origins: str = "http://localhost:3000"
+    # Server (comma-separated; include 127.0.0.1 if you open the UI that way)
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     @property
     def origins_list(self) -> list[str]:

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from typing import Literal
@@ -28,17 +30,20 @@ async def search(
     Semantic search across your notes.
     Use collection='code' to search only code, 'documents' for notes.
     """
-    embedding = embed_query(q)
 
-    if collection == "all":
-        doc_results = query_collection(embedding, "documents", n_results=top_k)
-        code_results = query_collection(embedding, "code", n_results=top_k)
-        results = doc_results + code_results
-    else:
-        results = query_collection(embedding, collection, n_results=top_k)
+    def _run():
+        embedding = embed_query(q)
+        if collection == "all":
+            doc_results = query_collection(embedding, "documents", n_results=top_k)
+            code_results = query_collection(embedding, "code", n_results=top_k)
+            results = doc_results + code_results
+        else:
+            results = query_collection(embedding, collection, n_results=top_k)
+        if rerank_results and results:
+            results = rerank(q, results, top_k=top_k)
+        return results
 
-    if rerank_results and results:
-        results = rerank(q, results, top_k=top_k)
+    results = await asyncio.to_thread(_run)
 
     return {
         "query": q,
@@ -64,9 +69,14 @@ async def search_code(
     top_k: int = 10,
 ):
     """Search only code files, with optional language filter."""
-    embedding = embed_query(q)
-    where = {"language": language} if language else None
-    results = query_collection(embedding, "code", n_results=top_k * 2, where=where)
-    if results:
-        results = rerank(q, results, top_k=top_k)
+
+    def _run():
+        embedding = embed_query(q)
+        where = {"language": language} if language else None
+        results = query_collection(embedding, "code", n_results=top_k * 2, where=where)
+        if results:
+            results = rerank(q, results, top_k=top_k)
+        return results
+
+    results = await asyncio.to_thread(_run)
     return {"query": q, "language": language, "results": results}

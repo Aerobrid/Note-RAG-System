@@ -21,6 +21,15 @@ def get_embedder() -> SentenceTransformer:
 
 
 @lru_cache(maxsize=1)
+def get_code_embedder() -> SentenceTransformer:
+    settings = get_settings()
+    print(f"[code-embedder] Loading {settings.code_embed_model}...")
+    model = SentenceTransformer(settings.code_embed_model)
+    print("[code-embedder] Ready.")
+    return model
+
+
+@lru_cache(maxsize=1)
 def get_reranker() -> CrossEncoder:
     settings = get_settings()
     print(f"[reranker] Loading {settings.reranker_model}...")
@@ -29,7 +38,7 @@ def get_reranker() -> CrossEncoder:
     return model
 
 
-def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+def embed_texts(texts: list[str], batch_size: int = 64, for_code: bool = False) -> list[list[float]]:
     """Embed a list of texts. Runs encoding in a thread to avoid blocking the event loop.
 
     This function is async-friendly: call it with `await embed_texts(...)`.
@@ -37,7 +46,7 @@ def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
     import asyncio
 
     def _encode():
-        model = get_embedder()
+        model = get_code_embedder() if for_code else get_embedder()
         embeddings = model.encode(
             texts,
             batch_size=batch_size,
@@ -49,8 +58,13 @@ def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
     return asyncio.to_thread(_encode)
 
 
-def embed_query(query: str) -> list[float]:
-    """Embed a single query with the BGE query instruction prefix."""
+def embed_query(query: str, for_code: bool = False) -> list[float]:
+    """Embed a single query. Uses instruction prefix for document embedder but not code embedder."""
+    if for_code:
+        model = get_code_embedder()
+        embedding = model.encode(query, normalize_embeddings=True)
+        return embedding.tolist()
+
     model = get_embedder()
     # BGE-large uses an instruction prefix for retrieval queries
     instructed = f"Represent this sentence for searching relevant passages: {query}"

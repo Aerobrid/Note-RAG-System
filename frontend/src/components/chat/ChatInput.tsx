@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, Square, Sparkles, Command } from "lucide-react";
+import { Send, Square, Command } from "lucide-react";
 import { useRef, useEffect, useState, KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +13,9 @@ interface Props {
 }
 
 const SUGGESTIONS = [
-  "Explain today's lecture",
-  "Binary search code",
-  "Summarize key notes",
+  "Summarize my most recent notes",
+  "Explain the code I uploaded",
+  "Define the main terms in chapter 2",
 ];
 
 export function ChatInput({ onSend, isStreaming, onStop, disabled, placeholder }: Props) {
@@ -109,9 +109,8 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, placeholder }
            <span>Return to Send</span>
         </div>
         <div className="w-1 h-1 rounded-full bg-[rgb(var(--text-2))]" />
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--text-2))]">
-           <Sparkles className="w-3 h-3" />
-           <span>AI Grounded</span>
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--text-2))]">
+           <span>RAG context</span>
         </div>
       </div>
     </div>

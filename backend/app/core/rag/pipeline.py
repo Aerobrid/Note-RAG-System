@@ -15,7 +15,9 @@ Nodes:
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from typing import TypedDict, Literal, AsyncIterator
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -43,41 +45,69 @@ class RAGState(TypedDict):
 
 # ── Prompts ─────────────────────────────────────────────────────────────────
 
-ROUTER_PROMPT = """You are a query router for a personal knowledge base of college lecture notes and code.
+ROUTER_PROMPT = """You are a query router for a personal knowledge base of lecture notes and uploaded files (including source code).
 Classify the query into one of:
-- "code"   - questions about code, programming, algorithms, data structures, debugging
-- "qa"     - questions about concepts, theory, definitions from lecture notes
-- "hybrid" - questions that need both notes and code (e.g. "show me the code from today's lecture on sorting")
+- "code"   - programming, algorithms, debugging, refactoring, or questions clearly about source code behavior
+- "qa"     - concepts, theory, definitions from notes only (no code files needed)
+- "hybrid" - needs both, OR the user refers to "my file", "the script I uploaded", a filename, or anything that could be in notes or code
 
 Respond with ONLY one word: code, qa, or hybrid."""
 
-QA_SYSTEM_PROMPT = """You are a personal knowledge assistant trained on the user's own college notes.
-Answer questions using ONLY the provided context from their notes.
-- Be precise and academic
-- If the context doesn't contain enough information, say so honestly
-- Always cite which source the information came from using [Source: filename]
-- Format math/formulas clearly using markdown"""
+# Fast path: skip an LLM round-trip when the query clearly concerns code or uploads.
+_CODE_EXT_RE = re.compile(
+    r"\.(py|js|mjs|cjs|ts|tsx|jsx|java|c|cpp|cc|cxx|h|hpp|cs|go|rs|rb|php|swift|kt|kts|sql|sh|bash|"
+    r"r|m|ipynb|json|yaml|yml|toml|xml|html|css|scss|vue|svelte)\b",
+    re.IGNORECASE,
+)
 
-CODE_SYSTEM_PROMPT = """You are a code-aware study assistant with access to the user's code files.
-When answering:
-- Reference specific functions, classes, or lines from their code
-- Explain what the code does in plain English
-- Point out patterns, bugs, or improvements if relevant
-- Use markdown code blocks for all code snippets
-- Always cite [Source: filename] when referencing their code"""
+
+def _heuristic_query_type(query: str) -> str | None:
+    q = query.strip()
+    if not q:
+        return None
+    low = q.lower()
+    if _CODE_EXT_RE.search(q):
+        return "hybrid"
+    upload_hints = (
+        "uploaded", "my file", "my code", "this file", "the file", "script i", "in my repo",
+        "source file", "snippet", "repository",
+    )
+    if any(h in low for h in upload_hints):
+        return "hybrid"
+    code_hints = (
+        "def ", "class ", "import ", "function ", "stack trace", "traceback", "refactor",
+        "debug", "compiler", "runtime error", "exception", "npm ", "pip ", "git ",
+    )
+    if any(h in low for h in code_hints):
+        return "code"
+    return None
+
+QA_SYSTEM_PROMPT = """Answer using ONLY the provided context (notes, slides, PDFs, and any code excerpts included there).
+- Be precise; if the context is insufficient, say so
+- Cite sources as [Source: filename]
+- Use clear markdown for formulas"""
+
+CODE_SYSTEM_PROMPT = """Answer using ONLY the provided context from the user's indexed source files.
+- Name functions, classes, or files you rely on
+- Explain behavior in plain language; use fenced code blocks for snippets
+- Cite [Source: filename] for each code reference"""
 
 
 # ── Node functions ───────────────────────────────────────────────────────────
 
 def route_query(state: RAGState) -> RAGState:
-    """Classify query type using LLM."""
+    """Classify query type using a cheap heuristic first, then LLM if needed."""
+    guessed = _heuristic_query_type(state["query"])
+    if guessed:
+        return {**state, "query_type": guessed}
+
     llm = get_llm()
     messages = [
         SystemMessage(content=ROUTER_PROMPT),
         HumanMessage(content=state["query"]),
     ]
     response = llm.invoke(messages)
-    query_type = response.content.strip().lower()
+    query_type = (response.content or "").strip().lower()
     if query_type not in ("code", "qa", "hybrid"):
         query_type = "qa"
 
@@ -85,21 +115,30 @@ def route_query(state: RAGState) -> RAGState:
 
 
 def retrieve_docs(state: RAGState) -> RAGState:
-    """Retrieve candidates from the appropriate collection."""
-    query_type = state["query_type"]
+    """Retrieve candidates from the appropriate collection(s).
 
-    if query_type == "hybrid":
-        candidates = retrieve_hybrid(state["query"], n_candidates=25, n_final=15)
+    Note: plain "qa" still searches both Chroma collections so uploaded code files
+    are reachable from chat (search already used collection=all; chat must match).
+    """
+    query_type = state["query_type"]
+    q = state["query"]
+
+    if query_type == "code":
+        candidates = retrieve(q, query_type="code", n_candidates=28, n_final=15)
     else:
-        candidates = retrieve(state["query"], query_type=query_type, n_candidates=25, n_final=15)
+        # qa + hybrid: notes + code (extra code quota helps natural-language questions about files)
+        candidates = retrieve_hybrid(
+            q, n_candidates=24, n_final=18, code_quota=28,
+        )
 
     return {**state, "candidates": candidates}
 
 
 def rerank_docs(state: RAGState) -> RAGState:
     """Cross-encoder reranking of candidates."""
-    # Build context string with citations
-    reranked = rerank(state["query"], state["candidates"])
+    # Build context string with citations (default rerank top_k=5 was too small for code + notes)
+    n = len(state["candidates"])
+    reranked = rerank(state["query"], state["candidates"], top_k=max(1, min(n, 15)))
     context_parts = []
     sources = []
     for i, doc in enumerate(reranked, 1):
@@ -201,25 +240,29 @@ async def run_rag_pipeline(
     history: list[dict] | None = None,
 ) -> dict:
     """Run the full agentic RAG pipeline and return result."""
-    graph = get_rag_graph()
-    initial_state: RAGState = {
-        "query": query,
-        "query_type": "qa",
-        "candidates": [],
-        "reranked": [],
-        "context": "",
-        "response": "",
-        "sources": [],
-        "history": history or [],
-        "retry_count": 0,
-        "stream_tokens": [],
-    }
-    final_state = await graph.ainvoke(initial_state)
-    return {
-        "response": final_state["response"],
-        "sources": final_state["sources"],
-        "query_type": final_state["query_type"],
-    }
+
+    def _sync_run() -> dict:
+        graph = get_rag_graph()
+        initial_state: RAGState = {
+            "query": query,
+            "query_type": "qa",
+            "candidates": [],
+            "reranked": [],
+            "context": "",
+            "response": "",
+            "sources": [],
+            "history": history or [],
+            "retry_count": 0,
+            "stream_tokens": [],
+        }
+        final_state = graph.invoke(initial_state)
+        return {
+            "response": final_state["response"],
+            "sources": final_state["sources"],
+            "query_type": final_state["query_type"],
+        }
+
+    return await asyncio.to_thread(_sync_run)
 
 
 async def stream_rag_pipeline(
@@ -228,24 +271,24 @@ async def stream_rag_pipeline(
 ) -> AsyncIterator[str]:
     """
     Streaming version - yields tokens as they arrive.
-    The graph runs route->retrieve->rerank synchronously,
-    then streams the generator step.
+    Route / retrieve / rerank run in a worker thread so embedding and reranker
+    do not block the asyncio event loop; then the LLM streams on the loop.
     """
-    is_code = False
-    sources = []
+    hist = history or []
 
-    # Run retrieval stages synchronously first
-    initial: RAGState = {
-        "query": query, "query_type": "qa", "candidates": [],
-        "reranked": [], "context": "", "response": "",
-        "sources": [], "history": history or [],
-        "retry_count": 0, "stream_tokens": [],
-    }
-    route_state = route_query(initial)
+    def _sync_retrieval() -> tuple[RAGState, RAGState]:
+        initial: RAGState = {
+            "query": query, "query_type": "qa", "candidates": [],
+            "reranked": [], "context": "", "response": "",
+            "sources": [], "history": hist,
+            "retry_count": 0, "stream_tokens": [],
+        }
+        route_state = route_query(initial)
+        retrieved_state = retrieve_docs(route_state)
+        return route_state, rerank_docs(retrieved_state)
+
+    route_state, reranked_state = await asyncio.to_thread(_sync_retrieval)
     is_code = route_state["query_type"] == "code"
-
-    retrieved_state = retrieve_docs(route_state)
-    reranked_state = rerank_docs(retrieved_state)
     sources = reranked_state["sources"]
 
     # Stream the generation

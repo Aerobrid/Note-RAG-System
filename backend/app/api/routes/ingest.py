@@ -11,13 +11,15 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 import hashlib
+import shutil
 from pathlib import Path
 
 
 import aiofiles
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 
 from app.core.config import get_settings
+from app.core.security_paths import assert_under_notes, notes_dir_resolved, safe_upload_filename
 from app.core.ingestion.parser import parse_file, DOC_EXTENSIONS, CODE_EXTENSIONS
 from app.core.ingestion.chunker import chunk_document
 from app.core.ingestion.embedder import embed_texts
@@ -56,7 +58,7 @@ async def ingest_file_async(file_path: str) -> dict:
         # 3. Embed
         _ingestion_status[file_id]["status"] = "embedding"
         texts = [c.text for c in chunks]
-        embeddings = await embed_texts(texts)
+        embeddings = await embed_texts(texts, for_code=(doc.doc_type == "code"))
 
         # 4. Store - remove old chunks first (idempotent re-ingest)
         delete_by_source(str(path))
@@ -96,23 +98,30 @@ async def upload_files(
     notes_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
-    # Build a hash index of existing files in notes_dir
-    existing_hashes = {}
-    for file in notes_dir.iterdir():
-        if file.is_file():
-            with open(file, "rb") as f:
-                file_hash = hashlib.sha256(f.read()).hexdigest()
-                existing_hashes[file_hash] = file.name
+    notes_root = notes_dir_resolved(settings)
 
     for upload in files:
-        suffix = Path(upload.filename).suffix.lower()
+        try:
+            safe_name = safe_upload_filename(upload.filename)
+        except HTTPException as e:
+            detail = e.detail if isinstance(e.detail, str) else str(e.detail)
+            results.append({"file": upload.filename or "", "error": detail})
+            continue
+
+        suffix = Path(safe_name).suffix.lower()
         if suffix not in SUPPORTED:
-            results.append({"file": upload.filename, "error": f"Unsupported format: {suffix}"})
+            results.append({"file": safe_name, "error": f"Unsupported format: {suffix}"})
+            continue
+
+        dest = (notes_dir / safe_name).resolve()
+        try:
+            assert_under_notes(dest, notes_root)
+        except HTTPException as e:
+            results.append({"file": safe_name, "error": e.detail})
             continue
 
         # Stream-upload to disk in chunks to avoid buffering entire file in memory
         hash_obj = hashlib.sha256()
-        dest = notes_dir / upload.filename
         chunk_size = 1024 * 1024  # 1MB
         async with aiofiles.open(dest, "wb") as f:
             while True:
@@ -123,22 +132,38 @@ async def upload_files(
                 hash_obj.update(chunk)
 
         upload_hash = hash_obj.hexdigest()
-        if upload_hash in existing_hashes:
-            # Remove the file we just wrote since it's a duplicate
+        upload_size = dest.stat().st_size
+
+        # Compare content hash only against same-sized files (avoids reading the whole notes tree each upload)
+        duplicate_of: str | None = None
+        for other in notes_dir.iterdir():
+            if not other.is_file() or other.resolve() == dest:
+                continue
+            try:
+                if other.stat().st_size != upload_size:
+                    continue
+            except OSError:
+                continue
+            with open(other, "rb") as rf:
+                if hashlib.sha256(rf.read()).hexdigest() == upload_hash:
+                    duplicate_of = other.name
+                    break
+
+        if duplicate_of:
             try:
                 dest.unlink()
-            except Exception:
+            except OSError:
                 pass
             results.append({
-                "file": upload.filename,
+                "file": safe_name,
                 "status": "skipped",
-                "reason": f"Duplicate of {existing_hashes[upload_hash]} by content hash"
+                "reason": f"Duplicate of {duplicate_of} by content hash",
             })
             continue
 
         # Ingest in background
         background_tasks.add_task(ingest_file_async, str(dest))
-        results.append({"file": upload.filename, "status": "queued"})
+        results.append({"file": safe_name, "status": "queued"})
 
     return {"results": results}
 
@@ -146,8 +171,13 @@ async def upload_files(
 @router.post("/ingest-path")
 async def ingest_path(path: str, background_tasks: BackgroundTasks):
     """Trigger ingestion of a specific file path (used by watchdog)."""
-    background_tasks.add_task(ingest_file_async, path)
-    return {"status": "queued", "path": path}
+    settings = get_settings()
+    root = notes_dir_resolved(settings)
+    raw = Path(path)
+    target = raw.resolve() if raw.is_absolute() else (Path(settings.notes_dir) / raw).resolve()
+    assert_under_notes(target, root)
+    background_tasks.add_task(ingest_file_async, str(target))
+    return {"status": "queued", "path": str(target)}
 
 
 @router.get("/status/{file_id}")
@@ -158,14 +188,67 @@ async def get_status(file_id: str):
 
 @router.get("/stats")
 async def get_ingestion_stats():
-    return get_stats()
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(get_stats), timeout=8.0)
+    except asyncio.TimeoutError:
+        return {"documents": 0, "code": 0, "error": "Vector store stats timed out"}
 
 
-@router.delete("/delete")
-async def delete_document(source: str):
-    """Remove all chunks for a given source file."""
-    delete_by_source(source)
-    return {"status": "deleted", "source": source}
+@router.get("/files")
+async def list_files():
+    """List all successfully indexed files currently residing in the backend notes directory."""
+    settings = get_settings()
+    notes_dir = Path(settings.notes_dir)
+    files = []
+    if notes_dir.exists() and notes_dir.is_dir():
+        for item in notes_dir.iterdir():
+            if item.is_file():
+                files.append({
+                    "name": item.name,
+                    "size": item.stat().st_size,
+                })
+    return {"files": files}
+
+
+@router.delete("/delete/{filename}")
+async def delete_document_by_name(filename: str):
+    """Remove all chunks for a given file name and delete it from local disk."""
+    settings = get_settings()
+    notes_dir = Path(settings.notes_dir).resolve()
+    
+    # Safe path resolution
+    target = (notes_dir / filename).resolve()
+    assert_under_notes(target, notes_dir)
+    
+    # Delete from Chromadb
+    delete_by_source(str(target))
+    
+    # Delete from local file system
+    if target.exists() and target.is_file():
+        target.unlink()
+        
+    return {"status": "deleted", "filename": filename}
+
+
+@router.delete("/clear")
+async def clear_all_documents():
+    """Clear all vector data and empty the notes directory."""
+    from app.db.vector_store import clear_all
+    
+    # Empty DB
+    clear_all()
+    
+    # Wipe notes folder
+    settings = get_settings()
+    notes_dir = Path(settings.notes_dir)
+    if notes_dir.exists() and notes_dir.is_dir():
+        for item in notes_dir.iterdir():
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+                
+    return {"status": "cleared"}
 
 
 # ── Watchdog Auto-Indexer ────────────────────────────────────────────────────

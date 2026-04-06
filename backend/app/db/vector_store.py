@@ -100,3 +100,18 @@ def get_stats() -> dict:
         "documents": get_docs_collection().count(),
         "code": get_code_collection().count(),
     }
+
+def clear_all() -> None:
+    """Wipe out all vector collections."""
+    client = get_chroma_client()
+    try:
+        client.delete_collection("documents")
+    except Exception:
+        pass
+    try:
+        client.delete_collection("code")
+    except Exception:
+        pass
+    # Re-create collections to prevent errors on next queries
+    get_docs_collection()
+    get_code_collection()

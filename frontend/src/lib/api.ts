@@ -4,6 +4,31 @@ const API = publicUrl && publicUrl.length > 0
   ? `${publicUrl.replace(/\/$/, "")}/api`
   : "/api";
 
+const HEALTH_TIMEOUT_MS = 6000;
+const STATS_TIMEOUT_MS = 10000;
+
+/** Backend origin without `/api` (empty when using same-origin proxy). */
+export function getBackendOrigin(): string {
+  if (!publicUrl || !publicUrl.length) return "";
+  return publicUrl.replace(/\/$/, "");
+}
+
+/** Human-readable target for the settings screen. */
+export function getBackendDisplayLabel(): string {
+  const o = getBackendOrigin();
+  return o || "Same origin (Next.js /api proxy)";
+}
+
+async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export interface StreamChunk {
   type: "meta" | "token" | "done";
   content?: string;
@@ -16,7 +41,6 @@ export async function* streamChat(
   query: string,
   history: { role: string; content: string }[]
 ): AsyncGenerator<StreamChunk> {
-  // Use /chat (no trailing slash) to match backend route and avoid 307 redirects
   const res = await fetch(`${API}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,12 +74,32 @@ export async function* streamChat(
   }
 }
 
-/** Upload files to /api/ingest/upload */
 export async function uploadFiles(files: File[]): Promise<{ results: { file: string; status: string; error?: string }[] }> {
   const fd = new FormData();
   files.forEach((f) => fd.append("files", f));
   const res = await fetch(`${API}/ingest/upload`, { method: "POST", body: fd });
   if (!res.ok) throw new Error(`Upload error: ${res.status}`);
+  return res.json();
+}
+
+/** Clear all data in the vector DB and wipe the backend notes folder. */
+export async function clearIndex(): Promise<{ status: string }> {
+  const res = await fetch(`${API}/ingest/clear`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Clear error: ${res.status}`);
+  return res.json();
+}
+
+/** Get all uniquely indexed files currently inside the database. */
+export async function getFiles(): Promise<{ files: { name: string, size: number }[] }> {
+  const res = await fetch(`${API}/ingest/files`);
+  if (!res.ok) throw new Error(`Fetch files error: ${res.status}`);
+  return res.json();
+}
+
+/** Specific target deletion algorithm taking the filename base. */
+export async function deleteFile(filename: string): Promise<{ status: string, filename: string }> {
+  const res = await fetch(`${API}/ingest/delete/${encodeURIComponent(filename)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete error: ${res.status}`);
   return res.json();
 }
 
@@ -65,15 +109,19 @@ export async function search(
   topK = 10
 ) {
   const params = new URLSearchParams({ q, collection, top_k: String(topK) });
-  const res = await fetch(`${API}/search?${params}`);
+  const res = await fetchWithTimeout(`${API}/search?${params}`, STATS_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Search error: ${res.status}`);
   return res.json();
 }
 
-export async function getStats() {
-  const res = await fetch(`${API}/ingest/stats`);
-  if (!res.ok) return { documents: 0, code: 0 };
-  return res.json();
+export async function getStats(): Promise<{ documents: number; code: number; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(`${API}/ingest/stats`, STATS_TIMEOUT_MS);
+    if (!res.ok) return { documents: 0, code: 0, error: `HTTP ${res.status}` };
+    return res.json();
+  } catch {
+    return { documents: 0, code: 0, error: "Unreachable or timed out" };
+  }
 }
 
 export async function generateDataset(nPairs = 3, maxChunks = 300) {
@@ -97,9 +145,22 @@ export async function getFinetuneStatus() {
   return res.json();
 }
 
-export async function getHealth() {
+export type HealthPayload = {
+  status: string;
+  llm_provider?: string;
+  ollama?: {
+    reachable: boolean;
+    models_installed?: number;
+    sample_models?: string[];
+    error?: string;
+  };
+  gemini_configured?: boolean;
+};
+
+export async function getHealth(): Promise<HealthPayload> {
   try {
-    const res = await fetch(`${API}/health`);
+    const res = await fetchWithTimeout(`${API}/health`, HEALTH_TIMEOUT_MS);
+    if (!res.ok) return { status: "offline" };
     return res.json();
   } catch {
     return { status: "offline" };

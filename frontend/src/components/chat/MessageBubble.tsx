@@ -1,16 +1,17 @@
 "use client";
+import React from "react";
 
 import { Message } from "@/store/useAppStore";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { SourcesPanel } from "./SourcesPanel";
-import { User, Sparkles } from "lucide-react";
+import { User, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
   message: Message;
 }
 
-export function MessageBubble({ message }: Props) {
+export const MessageBubble = React.memo(function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
 
   return (
@@ -25,7 +26,7 @@ export function MessageBubble({ message }: Props) {
               : "bg-brand text-white"
           )}
         >
-          {isUser ? <User className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+          {isUser ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
         </div>
 
         {/* Content */}

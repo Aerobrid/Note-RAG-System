@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { Sparkles, Plus, BookOpen, MessageSquare } from "lucide-react";
+import { Layers, Plus, MessageSquare } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { streamChat } from "@/lib/api";
 import { MessageBubble } from "@/components/chat/MessageBubble";
@@ -118,22 +118,14 @@ export default function ChatPage() {
         <div className="max-w-3xl mx-auto py-12 space-y-10">
           {session.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-6">
-              <div className="w-20 h-20 rounded-3xl bg-brand/5 flex items-center justify-center animate-pulse">
-                <Sparkles className="w-10 h-10 text-brand" />
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand/15 to-transparent border border-brand/10 flex items-center justify-center">
+                <Layers className="w-10 h-10 text-brand" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold tracking-tight">How can ScholarMind help today?</h2>
-                <p className="text-sm text-[rgb(var(--text-2))] max-w-sm mx-auto leading-relaxed">
-                  I'm grounded in your private documents. Ask me anything about your notes, research, or code.
+                <h2 className="text-2xl font-bold tracking-tight">Chat over your index</h2>
+                <p className="text-sm text-[rgb(var(--text-2))] max-w-md mx-auto leading-relaxed">
+                  Ask about uploaded PDFs, slides, docs, or source files. Answers cite retrieved chunks only.
                 </p>
-              </div>
-              <div className="flex gap-2">
-                 <div className="px-4 py-2 bg-[rgb(var(--surface-2))] rounded-2xl border border-[rgb(var(--border))] text-[12px] font-medium text-[rgb(var(--text-2))]">
-                    PDF Analysis
-                 </div>
-                 <div className="px-4 py-2 bg-[rgb(var(--surface-2))] rounded-2xl border border-[rgb(var(--border))] text-[12px] font-medium text-[rgb(var(--text-2))]">
-                    Code Explanation
-                 </div>
               </div>
             </div>
           )}

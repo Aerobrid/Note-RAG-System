@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   MessageSquare, Search, Upload, Cpu, Settings, BookOpen, ChevronLeft, ChevronRight, Plus, Trash2,
-  Clock, Sparkles
+  Library, Archive
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/chat",      icon: MessageSquare, label: "Chat" },
   { href: "/search",    icon: Search,        label: "Search" },
   { href: "/upload",    icon: Upload,        label: "Upload" },
+  { href: "/files",     icon: Archive,       label: "Files" },
   { href: "/finetune",  icon: Cpu,           label: "Fine-tune" },
 ];
 
@@ -36,8 +37,10 @@ export function Sidebar() {
         </div>
         {sidebarOpen && (
           <div className="flex flex-col min-w-0">
-            <span className="font-bold text-[15px] tracking-tight truncate text-[rgb(var(--text))]">ScholarMind</span>
-            <span className="text-[10px] text-brand font-bold uppercase tracking-widest leading-none">AI Intelligence</span>
+            <span className="font-bold text-[15px] tracking-tight truncate text-[rgb(var(--text))]">Note RAG</span>
+            <span className="text-[10px] text-[rgb(var(--text-2))] font-medium uppercase tracking-widest leading-none">
+              Local index
+            </span>
           </div>
         )}
       </div>
@@ -125,14 +128,11 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-3 border-t border-[rgb(var(--border))]">
         {sidebarOpen && (
-          <div className="bg-brand/5 rounded-2xl p-4 mb-4 border border-brand/5">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-brand" />
-              <span className="text-[10px] font-bold text-brand uppercase tracking-widest">Scholar Pro</span>
+          <div className="rounded-2xl p-3 mb-4 border border-[rgb(var(--border))] bg-[rgb(var(--surface-2))]/30">
+            <div className="flex items-center gap-2 text-[10px] text-[rgb(var(--text-2))]">
+              <Library className="w-3.5 h-3.5 shrink-0 text-brand" />
+              <span className="leading-relaxed">Replies use chunks from your indexed ./notes folder.</span>
             </div>
-            <p className="text-[10px] text-[rgb(var(--text-2))] leading-relaxed">
-              Grounding is active. Using your custom notes for RAG.
-            </p>
           </div>
         )}
         

@@ -6,6 +6,8 @@ Reciprocal Rank Fusion (RRF) merges rankings without requiring score normalizati
 """
 from __future__ import annotations
 
+import re
+
 from rank_bm25 import BM25Okapi
 
 from app.core.ingestion.embedder import embed_query
@@ -40,13 +42,18 @@ def _rrf_merge(
     return results
 
 
+def _tokenize_bm25(text: str) -> list[str]:
+    """Alphanumeric / underscore tokens so paths and code ids (foo.bar) split into foo, bar."""
+    return re.findall(r"[a-z0-9_]+", text.lower())
+
+
 def _bm25_search(query: str, docs: list[dict], top_k: int) -> list[dict]:
     """In-memory BM25 over a candidate set."""
     if not docs:
         return []
-    tokenized = [d["text"].lower().split() for d in docs]
+    tokenized = [_tokenize_bm25(d["text"]) for d in docs]
     bm25 = BM25Okapi(tokenized)
-    scores = bm25.get_scores(query.lower().split())
+    scores = bm25.get_scores(_tokenize_bm25(query))
     ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
     return [doc for _, doc in ranked[:top_k]]
 
@@ -64,8 +71,9 @@ def retrieve(
     3. RRF fusion of both rankings
     Returns n_final results.
     """
-    embedding = embed_query(query)
-    collection_name = "code" if query_type == "code" else "documents"
+    is_code = (query_type == "code")
+    embedding = embed_query(query, for_code=is_code)
+    collection_name = "code" if is_code else "documents"
 
     # Semantic results
     semantic_results = query_collection(
@@ -89,16 +97,24 @@ def retrieve_hybrid(
     query: str,
     n_candidates: int = 20,
     n_final: int = 10,
+    *,
+    code_quota: int | None = None,
 ) -> list[dict]:
-    """Search BOTH collections and merge results — for general queries."""
-    embedding = embed_query(query)
+    """Search BOTH collections and merge results — for general queries.
 
-    doc_results = query_collection(embedding, "documents", n_candidates)
-    code_results = query_collection(embedding, "code", n_candidates)
+    code_quota: when set, request at least this many candidates from the code
+    collection (helps chat find uploaded source files).
+    """
+    doc_embedding = embed_query(query, for_code=False)
+    code_embedding = embed_query(query, for_code=True)
+
+    n_code = max(n_candidates, code_quota or 0)
+    doc_results = query_collection(doc_embedding, "documents", n_candidates)
+    code_results = query_collection(code_embedding, "code", n_code)
 
     all_results = doc_results + code_results
 
     # BM25 over combined set
-    bm25_results = _bm25_search(query, all_results, top_k=n_candidates)
+    bm25_results = _bm25_search(query, all_results, top_k=min(len(all_results), n_candidates * 2))
     merged = _rrf_merge(all_results, bm25_results)
     return merged[:n_final]

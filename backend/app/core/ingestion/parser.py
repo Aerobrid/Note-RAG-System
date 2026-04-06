@@ -76,6 +76,8 @@ def _parse_document(path: Path) -> ParsedDocument:
                 "title": path.stem,
             },
         )
+    text = ""
+    page_count = 0
     # PowerPoint (.pptx) support (lazy import)
     if suffix == ".pptx":
         try:
@@ -90,7 +92,6 @@ def _parse_document(path: Path) -> ParsedDocument:
                         if hasattr(shape, "text") and shape.text:
                             slide_text.append(shape.text.strip())
                     except Exception:
-                        # ignore shapes we can't read
                         continue
                 if slide_text:
                     parts.append("\n".join(slide_text))
@@ -98,28 +99,12 @@ def _parse_document(path: Path) -> ParsedDocument:
             text = "\n\n".join(parts).strip()
             page_count = len(prs.slides)
             if not text:
-                # Fall back to plain text read if nothing extracted
                 raise ValueError("No text extracted from pptx")
-
-            return ParsedDocument(
-                text=text,
-                source=str(path),
-                doc_type="document",
-                title=path.stem,
-                page_count=page_count,
-                metadata={
-                    "source": str(path),
-                    "filename": path.name,
-                    "file_type": path.suffix.lower(),
-                    "title": path.stem,
-                },
-            )
         except Exception:
-            # graceful fallback to plain text below
             pass
 
     # DOCX support (lazy import)
-    if suffix == ".docx":
+    elif suffix == ".docx":
         try:
             import docx
 
@@ -129,23 +114,23 @@ def _parse_document(path: Path) -> ParsedDocument:
             page_count = len(paragraphs)
             if not text:
                 raise ValueError("No text extracted from docx")
-
-            return ParsedDocument(
-                text=text,
-                source=str(path),
-                doc_type="document",
-                title=path.stem,
-                page_count=page_count,
-                metadata={
-                    "source": str(path),
-                    "filename": path.name,
-                    "file_type": path.suffix.lower(),
-                    "title": path.stem,
-                },
-            )
         except Exception:
-            # graceful fallback to plain text below
             pass
+
+    if text:
+        return ParsedDocument(
+            text=text,
+            source=str(path),
+            doc_type="document",
+            title=path.stem.replace("_", " ").replace("-", " ").title() if suffix == ".pdf" else path.stem,
+            page_count=page_count,
+            metadata={
+                "source": str(path),
+                "filename": path.name,
+                "file_type": path.suffix.lower(),
+                "title": path.stem,
+            },
+        )
 
     # Fallback: treat as plain text for other types (including .ppt legacy)
     try:
