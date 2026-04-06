@@ -2,162 +2,121 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  MessageSquare, Search, Upload, Cpu, Settings, BookOpen, ChevronLeft, ChevronRight, Plus, Trash2,
-  Library, Archive
-} from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/chat",      icon: MessageSquare, label: "Chat" },
-  { href: "/search",    icon: Search,        label: "Search" },
-  { href: "/upload",    icon: Upload,        label: "Upload" },
-  { href: "/files",     icon: Archive,       label: "Files" },
-  { href: "/finetune",  icon: Cpu,           label: "Fine-tune" },
+  { href: "/chat",      icon: "chat",           label: "Chat" },
+  { href: "/search",    icon: "search",         label: "Search" },
+  { href: "/upload",    icon: "upload_file",    label: "Upload" },
+  { href: "/files",     icon: "folder_open",    label: "Files" },
+  { href: "/finetune",  icon: "model_training", label: "Fine-tune" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sessions, activeSessionId, sidebarOpen, setSidebarOpen,
-          createSession, setActiveSession, deleteSession } = useAppStore();
+  const { sessions, activeSessionId, createSession, setActiveSession, deleteSession } = useAppStore();
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col h-screen transition-all duration-300 shrink-0 z-50 overflow-hidden",
-        "bg-[rgb(var(--surface))] border-r border-[rgb(var(--border))]",
-        sidebarOpen ? "w-64" : "w-16"
-      )}
-    >
-      {/* Brand */}
-      <div className="flex items-center gap-3 px-4 py-6">
-        <div className="w-8 h-8 rounded-xl bg-brand flex items-center justify-center shrink-0 shadow-lg shadow-brand/20">
-          <BookOpen className="w-4 h-4 text-white" />
-        </div>
-        {sidebarOpen && (
-          <div className="flex flex-col min-w-0">
-            <span className="font-bold text-[15px] tracking-tight truncate text-[rgb(var(--text))]">Note RAG</span>
-            <span className="text-[10px] text-[rgb(var(--text-2))] font-medium uppercase tracking-widest leading-none">
-              Local index
-            </span>
+    <aside className="hidden md:flex flex-col h-full w-64 border-r border-outline-variant/15 bg-surface-variant/80 backdrop-blur-xl shadow-[40px_60px_-10px_rgba(0,0,0,0.12)] shrink-0 z-50">
+      {/* Top: Brand & CTA */}
+      <div className="px-5 pt-8 pb-4 flex flex-col gap-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
+            <span className="material-symbols-outlined text-on-primary" style={{ fontVariationSettings: "'FILL' 1" }}>anchor</span>
           </div>
-        )}
+          <div>
+            <h1 className="text-xl font-bold text-primary tracking-tight leading-none">RAG System</h1>
+            <p className="text-[10px] uppercase tracking-widest text-on-surface-variant/70 mt-1 font-bold">Personal Knowledge Base</p>
+          </div>
+        </div>
+        
+        <button 
+          onClick={() => createSession()}
+          className="flex items-center justify-center gap-2 w-full py-3 bg-primary text-on-primary rounded-xl font-bold transition-all active:scale-95 duration-150 shadow-lg shadow-primary/10"
+        >
+          <span className="material-symbols-outlined text-sm">add</span>
+          <span className="font-manrope text-sm font-medium tracking-wide">New Session</span>
+        </button>
       </div>
 
-      {!sidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="mx-auto p-2 rounded-xl text-[rgb(var(--text-2))] hover:bg-[rgb(var(--surface-2))] transition-colors"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      )}
-
-      {/* Nav */}
-      <div className="px-3 mt-2">
-        {sidebarOpen && (
-          <p className="px-3 mb-2 text-[10px] font-bold text-[rgb(var(--text-2))] uppercase tracking-[0.2em] opacity-60">General</p>
-        )}
-        <nav className="space-y-1">
-          {NAV.map(({ href, icon: Icon, label }) => (
+      {/* Middle: Navigation */}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto scrollbar-hide space-y-1">
+        {NAV.map(({ href, icon, label }) => {
+          const isActive = pathname.startsWith(href);
+          return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] transition-all duration-200 relative",
-                pathname.startsWith(href)
-                  ? "bg-brand/10 text-brand font-semibold"
-                  : "text-[rgb(var(--text-2))] hover:bg-[rgb(var(--surface-2))] hover:text-[rgb(var(--text))]"
+                "flex items-center gap-3 px-4 py-3 rounded-r-lg transition-colors duration-200 group",
+                isActive
+                  ? "text-primary font-bold border-l-2 border-primary bg-surface-container-high"
+                  : "text-secondary-dim hover:text-primary hover:bg-surface-container-high/50 font-medium"
               )}
             >
-              <Icon className={cn("w-5 h-5 shrink-0 transition-transform group-hover:scale-105", pathname.startsWith(href) ? "text-brand" : "text-[rgb(var(--text-2))]/60")} />
-              {sidebarOpen && <span>{label}</span>}
-              {pathname.startsWith(href) && (
-                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-brand" />
-              )}
+              <span className="material-symbols-outlined">{icon}</span>
+              <span className="font-manrope text-sm tracking-wide">{label}</span>
             </Link>
-          ))}
-        </nav>
-      </div>
+          );
+        })}
+      </nav>
 
-      {/* Chat sessions */}
-      {sidebarOpen && pathname.startsWith("/chat") && (
-        <div className="flex-1 flex flex-col mt-8 px-3 overflow-hidden">
-          <div className="flex items-center justify-between px-3 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-[rgb(var(--text-2))] uppercase tracking-[0.2em] opacity-60">Recents</span>
-            </div>
-            <button
-              onClick={() => createSession()}
-              className="p-1 rounded-md text-[rgb(var(--text-2))] hover:bg-brand/10 hover:text-brand transition-colors"
-              title="New Chat"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+      {/* Bottom: Scrollable Recent Sessions */}
+      {pathname.startsWith("/chat") && (
+        <div className="h-1/3 flex flex-col border-t border-outline-variant/15 bg-surface-container-low/30">
+          <div className="px-5 py-3 flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/60">Recent Sessions</span>
+            <span className="material-symbols-outlined text-xs text-on-surface-variant/40">history</span>
           </div>
           
-          <div className="flex-1 overflow-y-auto custom-scroll space-y-1 pr-1 pb-4">
+          <div className="flex-1 overflow-y-auto px-3 pb-6 space-y-0.5 custom-scrollbar">
             {sessions.map((s) => (
               <div
                 key={s.id}
-                className={cn(
-                  "group flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer text-xs transition-all duration-200 border border-transparent",
-                  s.id === activeSessionId
-                    ? "bg-[rgb(var(--bg))] border-[rgb(var(--border))] text-[rgb(var(--text))] shadow-sm"
-                    : "text-[rgb(var(--text-2))] hover:bg-[rgb(var(--surface-2))/40] hover:text-[rgb(var(--text))]"
-                )}
                 onClick={() => setActiveSession(s.id)}
+                className={cn(
+                  "group flex items-center justify-between gap-3 px-4 py-2 text-xs rounded-lg transition-all duration-200 cursor-pointer",
+                  s.id === activeSessionId
+                    ? "text-primary bg-surface-container-high/60 font-semibold"
+                    : "text-on-surface-variant hover:text-primary hover:bg-surface-container-high/40"
+                )}
               >
-                <MessageSquare className={cn("w-3.5 h-3.5 shrink-0", s.id === activeSessionId ? "text-brand" : "opacity-30")} />
-                <span className="flex-1 truncate font-medium">{s.title}</span>
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <span className="material-symbols-outlined text-[14px]">history</span>
+                  <span className="truncate">{s.title || "New session"}</span>
+                </div>
                 <button
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-[rgb(var(--text-2))] hover:text-red-500 transition-all"
                   onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-on-surface-variant hover:text-error transition-all"
+                  title="Delete Session"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <span className="material-symbols-outlined text-[14px]">delete</span>
                 </button>
               </div>
             ))}
+            {sessions.length === 0 && (
+               <div className="p-4 text-xs text-on-surface-variant/50 text-center italic">No prior sessions found</div>
+            )}
           </div>
         </div>
       )}
-
-      <div className="flex-1" />
-
-      {/* Footer */}
-      <div className="p-3 border-t border-[rgb(var(--border))]">
-        {sidebarOpen && (
-          <div className="rounded-2xl p-3 mb-4 border border-[rgb(var(--border))] bg-[rgb(var(--surface-2))]/30">
-            <div className="flex items-center gap-2 text-[10px] text-[rgb(var(--text-2))]">
-              <Library className="w-3.5 h-3.5 shrink-0 text-brand" />
-              <span className="leading-relaxed">Replies use chunks from your indexed ./notes folder.</span>
-            </div>
-          </div>
-        )}
-        
+      
+      {/* Settings Link */}
+      <div className="p-3 border-t border-outline-variant/15">
         <Link
           href="/settings"
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
+            "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200",
             pathname === "/settings"
-              ? "bg-brand/10 text-brand font-semibold"
-              : "text-[rgb(var(--text-2))] hover:bg-[rgb(var(--surface-2))]"
+              ? "text-primary font-bold bg-surface-container-high"
+              : "text-secondary-dim hover:text-primary hover:bg-surface-container-high/50 font-medium"
           )}
         >
-          <Settings className={cn("w-5 h-5 shrink-0", pathname === "/settings" ? "text-brand" : "text-[rgb(var(--text-2))]/60")} />
-          {sidebarOpen && <span>Settings</span>}
+          <span className="material-symbols-outlined">settings</span>
+          <span className="font-manrope text-sm tracking-wide">Settings</span>
         </Link>
       </div>
-
-      {sidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(false)}
-          className="absolute bottom-20 -right-0 p-1 bg-[rgb(var(--bg))] border border-[rgb(var(--border))] rounded-full transform translate-x-1/2 shadow-sm text-[rgb(var(--text-2))] hover:text-brand transition-colors"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
-      )}
     </aside>
   );
 }

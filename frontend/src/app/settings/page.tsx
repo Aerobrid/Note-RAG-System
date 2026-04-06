@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Settings, Database, Cpu, RefreshCw, CheckCircle2, AlertCircle, Timer } from "lucide-react";
 import { getHealth, getStats, getBackendDisplayLabel, type HealthPayload } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
@@ -41,156 +40,205 @@ export default function SettingsPage() {
     {
       id: "cloud",
       label: "Cloud Provider",
-      desc: "Remote API. Set CLOUD_API_KEY and CLOUD_MODEL in .env.",
+      desc: "Remote API. Map CLOUD_API_KEY and CLOUD_MODEL in environments.",
       badge: "API",
-      badgeColor: "bg-green-500/10 text-green-400",
+      badgeColor: "bg-primary-container text-primary font-bold border border-primary/20",
     },
     {
       id: "ollama",
-      label: "Ollama",
-      desc: "Local inference. Set OLLAMA_BASE_URL and models in .env.",
+      label: "Local Engine",
+      desc: "Local inference. Requires OLLAMA_BASE_URL mapped to internal host.",
       badge: "Local",
-      badgeColor: "bg-purple-500/10 text-purple-400",
+      badgeColor: "bg-surface-container-highest text-secondary border border-secondary/20",
     },
   ];
 
   return (
-    <div className="p-6 max-w-2xl mx-auto w-full">
-      <div className="mb-6 flex items-center gap-3">
-        <Settings className="w-5 h-5 text-[rgb(var(--text-2))]" />
-        <h1 className="text-xl font-semibold">Settings</h1>
-      </div>
+    <div className="flex-1 flex flex-col relative bg-surface h-full overflow-hidden">
+      {/* Top Bar */}
+      <header className="h-16 flex items-center justify-between px-8 border-b border-outline-variant/10 bg-surface/40 backdrop-blur-md z-10 shrink-0">
+        <div>
+           <span className="font-manrope text-xs font-semibold text-on-surface-variant uppercase tracking-[0.2em]">Workspace</span>
+           <span className="mx-2 text-on-surface-variant/50">/</span>
+           <span className="font-manrope text-xs font-semibold text-primary">Settings</span>
+        </div>
+      </header>
 
-      <section className="mb-6">
-        <h2 className="text-sm font-medium mb-3 text-[rgb(var(--text-2))] uppercase tracking-wider">Backend</h2>
-        <div className="border border-[rgb(var(--border))] rounded-2xl p-4 bg-[rgb(var(--surface))] flex items-center gap-3">
-          {loading ? (
-            <RefreshCw className="w-4 h-4 animate-spin text-[rgb(var(--text-2))]" />
-          ) : health?.status === "ok" ? (
-            <CheckCircle2 className="w-4 h-4 text-green-400" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-red-400" />
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">
-              {loading ? "Checking…" : health?.status === "ok" ? "Reachable" : "Unreachable"}
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto px-8 lg:px-12 py-12 custom-scrollbar">
+        <div className="max-w-[800px] w-full mx-auto relative z-10">
+          
+          {/* Page Header */}
+          <div className="mb-12 animate-in fade-in duration-500 fly-in-from-bottom-2">
+            <h2 className="text-[3rem] font-extrabold font-headline leading-tight tracking-tight text-on-surface mb-2">Global Settings</h2>
+            <p className="text-on-surface-variant text-lg font-light">
+              Manage backend health, active LLM provider, and vector database stats.
             </p>
-            <p className="text-xs text-[rgb(var(--text-2))] truncate" title={backendLabel}>
-              {backendLabel}
-            </p>
-            {latencyMs != null && !loading && health?.status === "ok" && (
-              <p className="text-[10px] text-[rgb(var(--text-2))] mt-1 flex items-center gap-1">
-                <Timer className="w-3 h-3" /> Health {latencyMs} ms
-              </p>
-            )}
-            {!loading && health?.llm_provider === "ollama" && health.ollama && (
-              <p
-                className={cn(
-                  "text-[10px] mt-1.5 leading-snug",
-                  health.ollama.reachable ? "text-green-400/90" : "text-amber-500/90"
-                )}
-              >
-                Ollama at <code className="font-mono text-[rgb(var(--text-2))]">OLLAMA_BASE_URL</code>:{" "}
-                {health.ollama.reachable
-                  ? `${health.ollama.models_installed ?? 0} model(s) installed`
-                  : `not reachable — ${health.ollama.error ?? "check URL and that Ollama is running"}`}
-              </p>
-            )}
-            {!loading && health?.llm_provider === "cloud" && (
-              <p
-                className={cn(
-                  "text-[10px] mt-1.5",
-                  health.cloud_configured ? "text-green-400/90" : "text-amber-500/90"
-                )}
-              >
-                Cloud API key: {health.cloud_configured ? "loaded" : "missing — set CLOUD_API_KEY"}
-              </p>
-            )}
           </div>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="text-xs text-[rgb(var(--text-2))] hover:text-[rgb(var(--text))] flex items-center gap-1 shrink-0"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </button>
-        </div>
-      </section>
 
-      <section className="mb-6">
-        <h2 className="text-sm font-medium mb-3 text-[rgb(var(--text-2))] uppercase tracking-wider">Vector index</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "Note chunks", value: stats?.documents ?? 0, icon: Database, color: "text-brand-400" },
-            { label: "Code chunks", value: stats?.code ?? 0, icon: Cpu, color: "text-purple-400" },
-          ].map((stat) => (
-            <div key={stat.label} className="border border-[rgb(var(--border))] rounded-2xl p-4 bg-[rgb(var(--surface))]">
-              <stat.icon className={cn("w-5 h-5 mb-2", stat.color)} />
-              <p className="text-2xl font-semibold">
-                {statsLoading ? "…" : stat.value.toLocaleString()}
-              </p>
-              <p className="text-xs text-[rgb(var(--text-2))] mt-0.5">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-        {stats?.error && (
-          <p className="text-xs text-amber-500/90 mt-2">{stats.error}</p>
-        )}
-      </section>
-
-      <section className="mb-6">
-        <h2 className="text-sm font-medium mb-1 text-[rgb(var(--text-2))] uppercase tracking-wider">LLM</h2>
-        <p className="text-xs text-[rgb(var(--text-2))] mb-3">
-          Active provider comes from the backend <code className="font-mono text-brand-400">LLM_PROVIDER</code>. Restart the API after changing <code className="font-mono text-brand-400">.env</code>.
-        </p>
-        <div className="space-y-3">
-          {PROVIDERS.map((p) => (
-            <div
-              key={p.id}
-              className={cn(
-                "border rounded-2xl p-4 bg-[rgb(var(--surface))] transition-colors",
-                health?.llm_provider === p.id
-                  ? "border-brand-600/60"
-                  : "border-[rgb(var(--border))]"
-              )}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <div
-                  className={cn(
-                    "w-2.5 h-2.5 rounded-full",
-                    health?.llm_provider === p.id ? "bg-green-400" : "bg-[rgb(var(--border))]"
+          <div className="space-y-8 animate-in fade-in duration-700 fly-in-from-bottom-4">
+            
+            {/* Backend Telemetry Section */}
+            <section>
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-4 ml-2">Backend Status</h3>
+              <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-6 shadow-lg shadow-black/5 flex items-center gap-6">
+                <div className="shrink-0 w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center border border-outline-variant/10 relative">
+                  {loading ? (
+                    <span className="material-symbols-outlined text-primary animate-spin text-3xl">refresh</span>
+                  ) : health?.status === "ok" ? (
+                    <>
+                      <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-50" />
+                      <span className="material-symbols-outlined text-primary text-3xl z-10" style={{ fontVariationSettings: "'FILL' 1" }}>hub</span>
+                    </>
+                  ) : (
+                    <span className="material-symbols-outlined text-error text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
                   )}
-                />
-                <span className="text-sm font-medium">{p.label}</span>
-                <span className={cn("ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium", p.badgeColor)}>
-                  {p.badge}
-                </span>
-              </div>
-              <p className="text-xs text-[rgb(var(--text-2))] ml-[18px]">{p.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+                </div>
 
-      <section>
-        <h2 className="text-sm font-medium mb-3 text-[rgb(var(--text-2))] uppercase tracking-wider">Environment</h2>
-        <div className="border border-[rgb(var(--border))] rounded-2xl p-4 bg-[rgb(var(--surface))] font-mono text-xs space-y-1.5 text-[rgb(var(--text-2))]">
-          {[
-            ["LLM_PROVIDER", "cloud | ollama"],
-            ["CLOUD_API_KEY", "your provider API key"],
-            ["CLOUD_MODEL", "your provider model ID"],
-            ["OLLAMA_BASE_URL", "http://localhost:11434"],
-            ["NOTES_DIR", "./notes"],
-            ["CHROMA_PATH", "./chroma_db"],
-          ].map(([k, v]) => (
-            <div key={k} className="flex gap-3">
-              <span className="text-brand-400 shrink-0">{k}</span>
-              <span>=</span>
-              <span className="text-[rgb(var(--text))]">{v}</span>
-            </div>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-on-surface uppercase tracking-widest mb-1 shadow-sm">
+                    {loading ? "Checking Backend..." : health?.status === "ok" ? "Backend Reachable" : "Backend Offline"}
+                  </h4>
+                  <p className="text-xs text-on-surface-variant font-mono truncate mb-2">
+                    {backendLabel}
+                  </p>
+                  
+                  {latencyMs != null && !loading && health?.status === "ok" && (
+                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-primary/80">
+                      <span className="material-symbols-outlined text-[14px]">timer</span>
+                      RTT Latency: {latencyMs}ms
+                    </div>
+                  )}
+
+                  {/* LLM Sub-status blocks */}
+                  {!loading && health?.llm_provider === "ollama" && health.ollama && (
+                    <div className={cn(
+                        "mt-4 p-3 rounded-xl border text-[11px] font-mono leading-relaxed",
+                        health.ollama.reachable ? "bg-primary/5 border-primary/20 text-primary" : "bg-error/5 border-error/20 text-error"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1 uppercase font-bold tracking-widest">
+                         <span className="material-symbols-outlined text-[14px]">memory</span> Local LLM Engine
+                      </div>
+                      {health.ollama.reachable
+                        ? `Connected. Operating with ${health.ollama.models_installed ?? 0} physical models.`
+                        : `CRITICAL: Engine unreachable. Validate Internal Host mappings.`}
+                    </div>
+                  )}
+
+                  {!loading && health?.llm_provider === "cloud" && (
+                    <div className={cn(
+                        "mt-4 p-3 rounded-xl border text-[11px] font-mono leading-relaxed",
+                        health.cloud_configured ? "bg-primary/5 border-primary/20 text-primary" : "bg-error/5 border-error/20 text-error"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1 uppercase font-bold tracking-widest">
+                         <span className="material-symbols-outlined text-[14px]">cloud</span> Cloud Inference
+                      </div>
+                      {health.cloud_configured ? "API Key validated and loaded into memory." : "CRITICAL: Cloud Token Missing. Modify env vars."}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => refresh()}
+                  className="px-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-primary flex items-center justify-center self-stretch h-16 shrink-0"
+                  title="Refresh Status"
+                >
+                  <span className="material-symbols-outlined">sync</span>
+                </button>
+              </div>
+            </section>
+
+            {/* Vector DB Stats Bento */}
+            <section className="animate-in fade-in duration-1000 fly-in-from-bottom-6">
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-4 ml-2">Vector Database</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: "Document chunks", value: stats?.documents ?? 0, icon: "description", color: "text-secondary" },
+                  { label: "Code chunks", value: stats?.code ?? 0, icon: "code", color: "text-primary" },
+                ].map((stat) => (
+                  <div key={stat.label} className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-6 shadow-lg shadow-black/5 hover:border-primary/20 transition-colors group">
+                    <div className="flex justify-between items-start mb-6">
+                       <span className={cn("material-symbols-outlined text-3xl opacity-80 group-hover:opacity-100 transition-opacity", stat.color)} style={{ fontVariationSettings: "'FILL' 1" }}>{stat.icon}</span>
+                    </div>
+                    <p className="text-[2.5rem] font-bold text-on-surface mb-1 font-mono tracking-tighter">
+                      {statsLoading ? "—" : stat.value.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+              {stats?.error && (
+                <div className="mt-3 p-3 bg-error/10 border border-error/20 rounded-xl flex items-center gap-3 text-error text-xs font-mono">
+                  <span className="material-symbols-outlined">warning</span> {stats.error}
+                </div>
+              )}
+            </section>
+
+            {/* Default LLM Selection */}
+            <section className="animate-in fade-in duration-1000 fly-in-from-bottom-8">
+              <div className="flex items-center justify-between mb-4 ml-2 flex-wrap gap-2">
+                 <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant">LLM Provider</h3>
+                 <p className="text-[10px] text-on-surface-variant/80 font-mono italic">
+                   Controlled by <span className="text-primary opacity-80 bg-primary/10 px-1 rounded">LLM_PROVIDER</span> in .env. Restart API after changing.
+                 </p>
+              </div>
+              
+              <div className="space-y-4">
+                {PROVIDERS.map((p) => (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "rounded-2xl p-6 bg-surface-container-low transition-all border shadow-lg",
+                      health?.llm_provider === p.id
+                        ? "border-primary shadow-primary/5"
+                        : "border-outline-variant/10 shadow-black/5 opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-4 mb-2">
+                      <div className={cn("w-3 h-3 rounded-full shadow-inner", health?.llm_provider === p.id ? "bg-primary animate-pulse shadow-primary" : "bg-surface-container-highest")} />
+                      <span className="text-sm font-bold text-on-surface uppercase tracking-widest">{p.label}</span>
+                      <span className={cn("ml-auto text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-widest", p.badgeColor)}>
+                        {p.badge}
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant ml-7 font-light">{p.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Environmental Config */}
+            <section className="animate-in fade-in duration-1000 fly-in-from-bottom-8">
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-4 ml-2">Environment Variables</h3>
+              <div className="bg-surface-container-high border border-transparent shadow-inner rounded-2xl p-6 font-mono text-[11px] space-y-3 text-on-surface-variant">
+                {[
+                  ["LLM_PROVIDER", "cloud | ollama"],
+                  ["CLOUD_API_KEY", "your provider API key"],
+                  ["CLOUD_MODEL", "your provider model ID"],
+                  ["OLLAMA_BASE_URL", "http://host.docker.internal:11434"],
+                  ["NOTES_DIR", "./notes"],
+                  ["CHROMA_PATH", "./chroma_db"],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex gap-4 border-b border-outline-variant/10 pb-3 last:border-0 last:pb-0 px-2 hover:bg-surface-container-highest/50 transition-colors rounded">
+                    <span className="text-primary tracking-widest font-bold min-w-[140px] shrink-0">{k}</span>
+                    <span className="text-outline shrink-0">=</span>
+                    <span className="text-on-surface opacity-80 break-words">{v}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+          </div>
         </div>
-      </section>
+
+        {/* Background Decorative Element */}
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <div className="absolute -bottom-[20%] -right-[10%] w-[60%] h-[60%] bg-primary/5 rounded-full blur-[140px]"></div>
+          <div className="absolute top-[10%] -left-[20%] w-[50%] h-[50%] bg-secondary/5 rounded-full blur-[120px]"></div>
+        </div>
+      </main>
     </div>
   );
 }

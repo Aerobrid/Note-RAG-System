@@ -1,23 +1,23 @@
 # Note RAG System 🧠
 
-An intelligent, multi-modal Retrieval-Augmented Generation (RAG) workspace. Specifically engineered to ingest raw source codebases, unstructured text, PDFs, and slide decks instantly, allowing you to interface with a locally accelerated LLM or cloud provider.
+A Retrieval-Augmented Generation (RAG) workspace. Ingest source code, unstructured text, PDFs, and slide decks to interface with a local LLM or API provider.
 
-This software runs a Dual-Embedding dynamic routing pipeline that intelligently separates standard semantic text vectors from highly granular source code vectors using **CodeBERT**. 
+This system runs a dual-embedding pipeline separating standard semantic text from source code using **CodeBERT**. 
 
 ---
 
 ## 🌟 Architecture & Workflows
 
 ### 1. Backend Vector Engine (FastAPI & ChromaDB)
-- **Dual-Model Vectorization Pipeline:** Automatically routes standard documents (`.docx`, `.pdf`, `.pptx`, `.md`) through `BAAI/bge-large-en-v1.5` arrays and code formats (`.py`, `.c`, `.cpp`, `.js`, etc.) through `microsoft/codebert-base`.
-- **Background Watchdog Indexing:** If deploying bare-metal or interacting via shell, any file dragged into the `./notes/` folder triggers an OS-level watchdog that automatically chunks, embeds, and indexes it into Chroma DB silently in the background.
+- **Vectorization Pipeline:** Automatically routes documents (`.docx`, `.pdf`, `.pptx`, `.md`) through `BAAI/bge-large-en-v1.5` and code (`.py`, `.c`, `.cpp`, `.js`) through `microsoft/codebert-base`.
+- **Background Watchdog Indexing:** When running locally, files added into the `./notes/` folder trigger an OS-level watchdog that automatically chunks, embeds, and indexes them into Chroma DB silently in the background.
 
-### 2. Intelligent Frontend Hub (Next.js)
-- **Chat Interface:** A snappy, minimalist messaging dashboard. Responses stream token-by-token directly from the LLM, and successfully retrieved chunks are dynamically rendered beneath the chatbot's message as expandable "Resource Sources". Built with `React.memo` to retain zero-lag UX during heavy text-bites.
-- **Upload Dropzone:** A smart drag-and-drop UI. Upon dropping a file, it categorizes it instantly, displays native coding logos for various programming scripts, and provides visual confirmation of ingestion completion. 
-- **Workspace File Manager:** A dashboard that pulls exactly what exists inside the live local index. Displays document sizes and allows you to surgically strike down/delete individual files from both local storage and the Chroma Vector DB without needing to rebuild schemas.
-- **Global Index Purge:** Granular control allowing you to securely hit the "Purge DB" button from the `Upload` queue to totally format the memory schemas in an instant if a conflict occurs. 
-- **Local Fine-Tuning Module:** Extractor logic that pairs existing database chunks with queries to auto-generate synthetic training datasets if you intend to PEFT/LoRA fine-tune your own underlying weights!
+### 2. Frontend User Interface (Next.js)
+- **Chat Interface:** A messaging dashboard. Responses stream directly from the LLM, and retrieved chunks are rendered beneath the message as expandable sources.
+- **Upload Dropzone:** A drag-and-drop UI. Categorizes files instantly and provides visual confirmation of ingestion completion. 
+- **Files Manager:** A dashboard that pulls exactly what exists inside the live local index. Displays database size and allows file deletion.
+- **Global Index Purge:** Delete the entire active directory with the "Purge DB" button from the `Upload` queue to format the memory in an instant if a conflict occurs. 
+- **Local Fine-Tuning Module:** Software that pairs existing database chunks with queries to auto-generate Q&A training datasets to train an LLM locally.
 
 ---
 
@@ -78,7 +78,7 @@ This runs the UI, backend server, and transient DB safely packed inside isolated
 ```bash
 docker compose up -d --build
 ```
-4. Access the gorgeous frontend at `http://localhost:3000`. The backend services map internally to `localhost:8000`. 
+4. Access the frontend at `http://localhost:3000`. The backend services map internally to `localhost:8000`. 
 
 ### Approach B: Bare-Metal Local Python Venv
 If you are developing components or prefer avoiding Docker volume virtualization:
@@ -122,4 +122,13 @@ npm run dev
 
 #### 3. Deepseek "Thinking" Tags Rendering Erratically 
 **The Issue:** Deepseek-R1 (`ollama`) pushes highly complex `<think>` block structures inside SSE streams which could leak formatting into the UI.
-**The Fix:** The RAG Markdown parser on the web dashboard naturally filters `<think>` XML branches dynamically! No specific action is required, as the model handles parsing visually.
+#### 4. Updating Environment Variables (`.env`)
+**The Issue:** Changing variables in your `.env` file (like `OLLAMA_MODEL` or switching endpoints) and running `docker compose restart` doesn't seem to apply the changes.
+**The Fix:** A standard restart only reboots the container using the initially cached environment state. To force Docker to ingest newly saved `.env` variables, you must run:
+`docker compose up -d`
+
+#### 5. Local GPU Acceleration & CUDA Errors
+**The Issue:** If you enable the NVIDIA GPU deploy blocks in `docker-compose.yml`, but your backend container crashes on startup or throws a PyTorch `CUDA error: no kernel image is available for execution` during embedding generation.
+**The Fix:** 
+- Keep the `deploy: resources: reservations: devices: - driver: nvidia` block commented out unless you actually have an active NVIDIA GPU installed on your host.
+- For older NVIDIA architectures (like the GTX 10-series Pascal), the main branch of PyTorch has phased out native bindings. Adjust the `backend/Dockerfile` to explicitly pull the `cu118` (CUDA 11.8) distribution of PyTorch before installing other packages!

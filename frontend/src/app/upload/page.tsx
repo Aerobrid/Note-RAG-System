@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileText, Code2, CheckCircle2, XCircle, Loader2, FolderOpen, Trash2, FilePlus, AlertCircle } from "lucide-react";
-import { uploadFiles, clearIndex } from "@/lib/api";
+import { uploadFiles, clearIndex, getStats } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type FileStatus = "pending" | "uploading" | "done" | "error";
@@ -26,29 +25,15 @@ const ACCEPTED = {
   "application/json": [".json", ".ipynb"],
 };
 
-const ICON_MAP: Record<string, React.ReactElement> = {
-  ".pdf": <FileText className="w-5 h-5 text-red-500" />,
-  ".docx": <FileText className="w-5 h-5 text-blue-500" />,
-  ".pptx": <FileText className="w-5 h-5 text-orange-500" />,
-  ".txt": <FileText className="w-5 h-5 text-gray-500" />,
-  ".md": <FileText className="w-5 h-5 text-gray-400" />,
-};
-
-// Any code extension will automatically get a Code2 Logo
 const CODE_EXTS = new Set([
   ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", 
   ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".sql", ".sh", 
   ".r", ".m", ".ipynb", ".json"
 ]);
 
-function getIcon(filename: string) {
+function isCodeFile(filename: string) {
   const ext = "." + filename.split(".").pop()!.toLowerCase();
-  
-  if (CODE_EXTS.has(ext)) {
-    return <Code2 className="w-5 h-5 text-yellow-500" />;
-  }
-  
-  return ICON_MAP[ext] ?? <FileText className="w-5 h-5 text-[rgb(var(--text-2))]" />;
+  return CODE_EXTS.has(ext);
 }
 
 export default function UploadPage() {
@@ -56,6 +41,23 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [purgeDialogStatus, setPurgeDialogStatus] = useState<"hidden" | "confirm" | "success" | "error">("hidden");
   const [purgeError, setPurgeError] = useState("");
+  
+  const [stats, setStats] = useState({ documents: 0, code: 0 });
+
+  const fetchStats = async () => {
+    try {
+      const dbStats = await getStats();
+      if (!dbStats.error) {
+        setStats({ documents: dbStats.documents || 0, code: dbStats.code || 0 });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   const onDrop = useCallback((accepted: File[]) => {
     const entries: FileEntry[] = accepted.map((f) => ({ file: f, status: "pending" }));
@@ -91,6 +93,7 @@ export default function UploadPage() {
           return { ...entry, status: r.error ? "error" : "done", error: r.error };
         })
       );
+      await fetchStats(); // Refresh DB stats after successful upload
     } catch (e: any) {
       setFiles((prev) =>
         prev.map((f) => (f.status === "uploading" ? { ...f, status: "error", error: e.message } : f))
@@ -110,6 +113,7 @@ export default function UploadPage() {
       await clearIndex();
       setFiles([]);
       setPurgeDialogStatus("success");
+      await fetchStats();
     } catch (err: any) {
       setPurgeError(err.message);
       setPurgeDialogStatus("error");
@@ -119,225 +123,209 @@ export default function UploadPage() {
   };
 
   const pendingCount = files.filter((f) => f.status === "pending" || f.status === "error").length;
+  
+  // Quick graphical math for DB stats (cap at 10k or 100% just for visual flair)
+  const docPercent = Math.min((stats.documents / 1000) * 100, 100).toFixed(0) + "%";
+  const codePercent = Math.min((stats.code / 1000) * 100, 100).toFixed(0) + "%";
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full min-h-screen flex flex-col bg-[rgb(var(--bg))]">
-      <div className="mb-10 text-center md:text-left">
-        <div className="flex items-center gap-2 mb-2 justify-center md:justify-start">
-           <Upload className="w-5 h-5 text-brand" />
-           <span className="text-[10px] font-semibold text-[rgb(var(--text-2))] uppercase tracking-[0.2em]">Upload</span>
+    <div className="flex-1 flex flex-col relative bg-surface h-full overflow-y-auto custom-scrollbar">
+      {/* Top Bar (Minimalist) */}
+      <header className="h-16 flex items-center justify-between px-8 border-b border-outline-variant/10 bg-surface/40 backdrop-blur-md z-10 shrink-0">
+        <div>
+           <span className="font-manrope text-xs font-semibold text-on-surface-variant uppercase tracking-[0.2em]">Workspace</span>
+           <span className="mx-2 text-on-surface-variant/50">/</span>
+           <span className="font-manrope text-xs font-semibold text-primary">Knowledge Engine</span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Add files</h1>
-        <p className="text-sm text-[rgb(var(--text-2))] max-w-xl leading-relaxed">
-          PDF, PPTX, DOCX, text, and source files are chunked and embedded into the local vector index.
-        </p>
-      </div>
+      </header>
 
-      <div className="grid lg:grid-cols-[1fr_350px] gap-10 flex-1 items-start">
-        {/* Left: Drop zone & Info */}
-        <div className="space-y-8">
-          <div
-            {...getRootProps()}
-            className={cn(
-              "border-2 border-dashed rounded-[2rem] p-16 flex flex-col items-center gap-6 cursor-pointer transition-all duration-300 group relative overflow-hidden",
-              isDragActive
-                ? "border-brand bg-brand/[0.03] scale-[1.01]"
-                : "border-[rgb(var(--border))] hover:border-brand/40 hover:bg-[rgb(var(--surface-2))/30]"
-            )}
-          >
-            <input {...getInputProps()} />
-            
-            <div className="w-20 h-20 rounded-3xl bg-brand/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-inner">
-              <Upload className={cn("w-10 h-10", isDragActive ? "text-brand" : "text-brand/60")} />
-            </div>
-            
-            <div className="text-center space-y-1">
-              <p className="text-lg font-bold tracking-tight">
-                {isDragActive ? "Drop to Begin" : "Add New Documents"}
-              </p>
-              <p className="text-[13px] text-[rgb(var(--text-2))]">
-                Drag & drop or <span className="text-brand font-bold underline underline-offset-4 decoration-brand/30 hover:decoration-brand transition-all">browse your files</span>
-              </p>
-            </div>
-
-            <div className="flex gap-4 opacity-30 mt-2">
-               <FileText className="w-5 h-5" />
-               <div className="w-px h-5 bg-[rgb(var(--border))]" />
-               <Code2 className="w-5 h-5" />
-               <div className="w-px h-5 bg-[rgb(var(--border))]" />
-               <FilePlus className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-[rgb(var(--surface-2))/40 rounded-2xl p-5 border border-[rgb(var(--border))]">
-              <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center mb-3 text-brand">
-                 <CheckCircle2 className="w-4 h-4" />
-              </div>
-              <h3 className="text-[13px] font-bold mb-1">Auto-Indexing</h3>
-              <p className="text-[12px] text-[rgb(var(--text-2))] leading-relaxed">
-                Files are chunked and embedded immediately after upload for real-time querying.
-              </p>
-            </div>
-            
-            <div className="bg-[rgb(var(--surface-2))/40 rounded-2xl p-5 border border-[rgb(var(--border))]">
-              <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center mb-3 text-brand">
-                 <FolderOpen className="w-4 h-4" />
-              </div>
-              <h3 className="text-[13px] font-bold mb-1">Direct Folder Sync</h3>
-              <p className="text-[12px] text-[rgb(var(--text-2))] leading-relaxed">
-                 Drop files into <code className="text-brand font-mono font-bold">./notes/</code> to skip the upload UI.
-              </p>
-            </div>
-            
-            <button
-              onClick={triggerPurge}
-              disabled={uploading}
-              className="md:col-span-2 mt-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl p-4 border border-red-500/20 text-center font-bold text-[13px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-            >
-              <Trash2 className="w-4 h-4" />
-              Purge Database & Settings
-            </button>
-          </div>
+      {/* Canvas */}
+      <div className="flex-1 px-8 lg:px-12 py-12 max-w-[1400px] w-full mx-auto">
+        {/* Header Section */}
+        <div className="mb-12 cursor-default">
+          <h2 className="text-[3rem] font-bold text-on-surface leading-tight tracking-tighter mb-4 animate-in fade-in duration-500 fly-in-from-bottom-2">Ingest Knowledge</h2>
+          <p className="text-on-surface-variant text-lg max-w-xl animate-in fade-in duration-700 fly-in-from-bottom-4">
+              Add documents to your RAG workspace. Files will be parsed and indexed for immediate querying.
+          </p>
         </div>
 
-        {/* Right: File list & Actions */}
-        <div className="flex flex-col border border-[rgb(var(--border))] rounded-[2rem] bg-[rgb(var(--surface))] overflow-hidden shadow-2xl shadow-black/[0.02]">
-          <div className="p-6 border-b border-[rgb(var(--border))] flex items-center justify-between bg-[rgb(var(--surface-2))/20]">
-            <h2 className="font-bold flex items-center gap-2 text-[14px]">
-              Queue
-              <span className="px-2 py-0.5 bg-brand text-white text-[10px] rounded-full font-bold">
-                {files.length}
-              </span>
-            </h2>
-            {files.some((f) => f.status === "done") && (
-              <button
-                onClick={removeDone}
-                className="text-[11px] font-bold text-brand hover:underline"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto max-h-[400px] custom-scroll divide-y divide-[rgb(var(--border))/50">
-            {files.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-[rgb(var(--surface-2))] flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-[rgb(var(--text-2))] opacity-40" />
-                </div>
-                <div className="space-y-1">
-                   <p className="text-[13px] text-[rgb(var(--text))] font-bold">Queue is empty</p>
-                   <p className="text-[11px] text-[rgb(var(--text-2))]">Selected files will appear here</p>
-                </div>
-              </div>
-            ) : (
-              files.map((entry, i) => (
-                <div key={`${entry.file.name}-${i}`} className="group flex items-center gap-4 px-6 py-4 hover:bg-[rgb(var(--surface-2))/20] transition-colors">
-                  <div className="shrink-0">{getIcon(entry.file.name)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold truncate text-[rgb(var(--text))]">{entry.file.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-bold text-[rgb(var(--text-2))] uppercase opacity-60">
-                        {(entry.file.size / 1024).toFixed(0)} KB
-                      </span>
-                      {entry.error && (
-                        <>
-                          <div className="w-1 h-1 rounded-full bg-red-400" />
-                          <span className="text-[10px] text-red-500 font-bold truncate">{entry.error}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    {entry.status === "pending" && (
-                      <button
-                        onClick={() => removeFile(i)}
-                        className="p-2 rounded-xl text-[rgb(var(--text-2))] hover:bg-red-50 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    {entry.status === "uploading" && (
-                      <Loader2 className="w-5 h-5 animate-spin text-brand" />
-                    )}
-                    {entry.status === "done" && (
-                      <div className="p-1.5 bg-green-50 dark:bg-green-500/10 rounded-lg">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      </div>
-                    )}
-                    {entry.status === "error" && (
-                      <button
-                        onClick={() => removeFile(i)}
-                        className="p-2 rounded-xl text-red-500 hover:bg-red-50 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="p-6 bg-[rgb(var(--surface-2))/20 border-t border-[rgb(var(--border))]">
-            <button
-              onClick={handleUpload}
-              disabled={uploading || pendingCount === 0}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+          {/* Upload Zone & Queue List */}
+          <div className="col-span-1 md:col-span-12 xl:col-span-8 flex flex-col gap-6">
+            <div 
+              {...getRootProps()}
               className={cn(
-                "w-full py-3.5 rounded-2xl text-[14px] font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]",
-                pendingCount > 0 && !uploading
-                  ? "bg-brand text-white shadow-brand/20 hover:bg-brand-hover"
-                  : "bg-[rgb(var(--surface-2))] text-[rgb(var(--text-2))] opacity-50 cursor-not-allowed shadow-none"
+                "relative group cursor-pointer animate-in fade-in duration-1000 fly-in-from-bottom-6",
+                uploading ? "pointer-events-none opacity-50" : ""
               )}
             >
-              {uploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Indexing...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  Upload {pendingCount} {pendingCount === 1 ? "Source" : "Sources"}
-                </>
-              )}
-            </button>
-            <p className="text-[10px] font-bold text-center text-[rgb(var(--text-2))] mt-4 uppercase tracking-widest opacity-40">
-               Encrypted Local Indexing
-            </p>
+              <input {...getInputProps()} />
+              <div className="absolute inset-0 bg-primary/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className={cn(
+                "border-2 border-dashed rounded-xl p-20 flex flex-col items-center justify-center text-center transition-all",
+                isDragActive ? "border-primary bg-primary/10" : "border-outline-variant/30 bg-surface-container-low group-hover:border-primary/50"
+              )}>
+                <span className={cn("material-symbols-outlined text-5xl mb-4 transition-colors", isDragActive ? "text-primary" : "text-on-surface-variant")}>
+                    cloud_upload
+                </span>
+                <h3 className="text-xl font-semibold text-on-surface mb-2">Drop files to upload</h3>
+                <p className="text-on-surface-variant text-sm">Or click to browse your local system</p>
+                <p className="text-xs text-outline mt-6 uppercase tracking-widest font-bold">PDF, TXT, MD, DOCX, Code</p>
+              </div>
+            </div>
+
+            {/* File List */}
+            {files.length > 0 && (
+              <div className="mt-8 animate-in fade-in slide-in-from-bottom-4">
+                <div className="flex items-center justify-between mb-6">
+                   <div className="flex items-center gap-3">
+                     <h4 className="text-sm font-bold text-on-surface uppercase tracking-widest">Active Queue</h4>
+                     <span className="text-xs font-mono bg-surface-container-high px-2 py-0.5 rounded text-primary">{files.length}</span>
+                   </div>
+                   <div className="flex gap-4 items-center">
+                     {files.some(f => f.status === "done") && (
+                        <button onClick={removeDone} className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors tracking-widest uppercase">
+                          Clear Completed
+                        </button>
+                     )}
+                     {pendingCount > 0 && (
+                        <button 
+                          onClick={handleUpload}
+                          disabled={uploading}
+                          className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-bold text-xs uppercase tracking-widest rounded-lg hover:shadow-[0_0_20px_rgba(163,207,206,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {uploading ? "Indexing..." : "Upload Pending"}
+                        </button>
+                     )}
+                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  {files.map((entry, i) => (
+                    <div key={`${entry.file.name}-${i}`} className="flex items-center justify-between p-4 bg-surface-container-high rounded-lg group hover:bg-surface-container-highest transition-colors border border-transparent hover:border-outline-variant/10">
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <span className={cn("material-symbols-outlined shrink-0", isCodeFile(entry.file.name) ? "text-primary/70" : "text-outline")}>
+                          {isCodeFile(entry.file.name) ? "code" : "description"}
+                        </span>
+                        <div className="truncate">
+                          <div className="text-sm font-medium text-on-surface truncate pr-4">{entry.file.name}</div>
+                          <div className="text-[10px] text-on-surface-variant uppercase tracking-tighter flex gap-2 items-center">
+                              {(entry.file.size / 1024 / 1024).toFixed(2)} MB
+                              {entry.error && <span className="text-error font-bold tracking-normal truncate">• {entry.error}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 shrink-0 pl-4">
+                        {entry.status === "pending" && <span className="text-[11px] font-mono text-secondary-dim italic">Pending</span>}
+                        {entry.status === "uploading" && <span className="text-[11px] font-mono text-primary animate-pulse">Parsing...</span>}
+                        {entry.status === "done" && <span className="text-[11px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">Indexed</span>}
+                        
+                        {(entry.status === "pending" || entry.status === "error") && (
+                           <button onClick={() => removeFile(i)} className="text-outline hover:text-error transition-colors p-1" disabled={uploading}>
+                             <span className="material-symbols-outlined text-sm">close</span>
+                           </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Contextual Info / Stats Columns */}
+          <div className="col-span-1 md:col-span-12 xl:col-span-4 space-y-6 flex flex-col h-full animate-in fade-in duration-1000 fly-in-from-bottom-[50px]">
+             
+             {/* Vector DB Stats */}
+             <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary/40 shadow-xl shadow-black/10">
+                <h5 className="text-xs font-bold text-primary uppercase tracking-widest mb-6">Database Stats</h5>
+                
+                <div className="space-y-5">
+                   <div className="group">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="text-xs font-bold text-on-surface-variant">Document chunks</span>
+                        <span className="text-xs text-on-surface font-mono">{stats.documents.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-surface-container-highest h-[3px] overflow-hidden rounded-full transition-all group-hover:h-[4px]">
+                         <div className="bg-primary h-full transition-all duration-1000" style={{ width: docPercent }}></div>
+                      </div>
+                   </div>
+
+                   <div className="group">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="text-xs font-bold text-on-surface-variant">Code chunks</span>
+                        <span className="text-xs text-on-surface font-mono">{stats.code.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-surface-container-highest h-[3px] overflow-hidden rounded-full transition-all group-hover:h-[4px]">
+                         <div className="bg-secondary h-full transition-all duration-1000" style={{ width: codePercent }}></div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Flush DB Button */}
+                <div className="mt-8 pt-6 border-t border-outline-variant/15">
+                   <button 
+                     onClick={triggerPurge} disabled={uploading}
+                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-error/20 bg-error/5 text-error hover:bg-error/10 hover:border-error/40 transition-all text-xs font-bold uppercase tracking-widest group active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                       <span className="material-symbols-outlined text-[18px] opacity-70 group-hover:opacity-100">database_off</span>
+                       Flush Vector Database
+                   </button>
+                </div>
+             </div>
+
+             {/* Ingestion Rules */}
+             <div className="bg-surface-container-low p-6 rounded-xl border border-transparent shadow-lg shadow-black/5">
+                <h5 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Ingestion Rules</h5>
+                <ul className="text-[13px] text-on-surface-variant space-y-4">
+                  <li className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[15px] mt-0.5 text-primary">check_circle</span>
+                    <span className="leading-snug">Continuous automatic text-chunking limits document context explosion.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[15px] mt-0.5 text-primary">check_circle</span>
+                    <span className="leading-snug">Hardware-accelerated embedding models extract structural metadata.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[15px] mt-0.5 text-primary">check_circle</span>
+                    <span className="leading-snug">Air-gapped operation ensures raw text bodies remain entirely local to this host.</span>
+                  </li>
+                </ul>
+             </div>
+
           </div>
         </div>
       </div>
 
-      {/* Purge Modal */}
+      {/* Atmospheric Purge Modal */}
       {purgeDialogStatus !== "hidden" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-lowest/70 backdrop-blur-md px-4 animate-in fade-in duration-200">
+          <div className="bg-surface-container-low border border-outline-variant/20 rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
             {purgeDialogStatus === "confirm" && (
               <>
                 <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-red-500/10 text-red-500 rounded-full border border-red-500/20">
-                    <AlertCircle className="w-10 h-10" />
+                  <div className="p-4 bg-error/10 text-error rounded-full border border-error/20">
+                    <span className="material-symbols-outlined text-4xl">warning</span>
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-center mb-3">Are you sure?</h2>
-                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
-                  This will permanently wipe all uploaded files and index databases from the system. This cannot be undone.
+                <h2 className="text-xl font-bold text-center mb-3 text-on-surface">Flush Master Database?</h2>
+                <p className="text-center text-on-surface-variant mb-8 leading-relaxed text-sm">
+                  This command issues a hard drop to the ChromaDB collections. All semantic vectors and uploaded entities will be permanently erased.
                 </p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setPurgeDialogStatus("hidden")}
-                    className="flex-1 py-3.5 rounded-2xl bg-[rgb(var(--surface-2))] hover:bg-[rgb(var(--surface-2))/80] text-[14px] font-bold transition-all"
+                    className="flex-1 py-3 rounded-xl bg-surface-container-highest hover:bg-surface-container-high text-on-surface text-[13px] font-bold transition-all border border-outline-variant/10"
                   >
-                    Cancel
+                    Abort
                   </button>
                   <button
                     onClick={executePurge}
-                    className="flex-1 py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-[14px] font-bold transition-all shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"
+                    className="flex-1 py-3 rounded-xl bg-error hover:bg-error-dim text-on-error text-[13px] font-bold transition-all shadow-lg shadow-error/20 flex items-center justify-center gap-2"
                   >
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    Yes, Purge
+                    {uploading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">delete_forever</span>}
+                    Confirm Drop
                   </button>
                 </div>
               </>
@@ -345,38 +333,38 @@ export default function UploadPage() {
             {purgeDialogStatus === "success" && (
               <>
                 <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-green-500/10 text-green-500 rounded-full border border-green-500/20">
-                    <CheckCircle2 className="w-10 h-10" />
+                  <div className="p-4 bg-primary/10 text-primary rounded-full border border-primary/20">
+                    <span className="material-symbols-outlined text-4xl">check_circle</span>
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-center mb-3">Successfully Purged</h2>
-                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
-                  Your database and raw files have been completely wiped.
+                <h2 className="text-xl font-bold text-center mb-3 text-on-surface">Indexes Flushed</h2>
+                <p className="text-center text-on-surface-variant mb-8 leading-relaxed text-sm">
+                  System embeddings have been successfully unlinked and purged from local storage.
                 </p>
                 <button
                   onClick={() => setPurgeDialogStatus("hidden")}
-                  className="w-full py-3.5 rounded-2xl bg-brand hover:bg-brand-hover text-white text-[14px] font-bold transition-all shadow-lg"
+                  className="w-full py-3 rounded-xl bg-primary hover:bg-primary-dim text-on-primary text-[13px] font-bold transition-all shadow-lg"
                 >
-                  Continue
+                  Return to Active State
                 </button>
               </>
             )}
             {purgeDialogStatus === "error" && (
               <>
                 <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-red-500/10 text-red-500 rounded-full border border-red-500/20">
-                    <XCircle className="w-10 h-10" />
+                  <div className="p-4 bg-error/10 text-error rounded-full border border-error/20">
+                    <span className="material-symbols-outlined text-4xl">error</span>
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-center mb-3 text-red-500">Purge Failed</h2>
-                <p className="text-center text-[rgb(var(--text-2))] mb-8 leading-relaxed text-[13px]">
-                  {purgeError || "An unknown error occurred while trying to format the databases."}
+                <h2 className="text-xl font-bold text-center mb-3 text-error">Flush Terminated</h2>
+                <p className="text-center text-on-surface-variant mb-8 leading-relaxed text-sm">
+                  {purgeError || "I/O lock prevented dropping collections. Check backend terminal."}
                 </p>
                 <button
                   onClick={() => setPurgeDialogStatus("hidden")}
-                  className="w-full py-3.5 rounded-2xl bg-[rgb(var(--surface-2))] hover:bg-[rgb(var(--surface-2))/80] text-[14px] font-bold transition-all"
+                  className="w-full py-3 rounded-xl bg-surface-container-highest hover:bg-surface-container-high text-on-surface border border-outline-variant/10 text-[13px] font-bold transition-all"
                 >
-                  Close
+                  Acknowledge
                 </button>
               </>
             )}

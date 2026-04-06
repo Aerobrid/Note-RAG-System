@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { Layers, Plus, MessageSquare } from "lucide-react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { streamChat } from "@/lib/api";
 import { MessageBubble } from "@/components/chat/MessageBubble";
@@ -19,7 +18,6 @@ export default function ChatPage() {
 
   const session = getActiveSession();
 
-  // Auto-create session on first load
   useEffect(() => {
     if (!activeSessionId && sessions.length === 0) {
       const id = createSession();
@@ -29,7 +27,6 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Scroll to bottom on new message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [session?.messages]);
@@ -94,37 +91,38 @@ export default function ChatPage() {
   if (!session) return null;
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--bg))] relative overflow-hidden">
-      {/* Centered Header */}
-      <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 glass">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-brand/10 rounded-lg">
-            <MessageSquare className="w-4 h-4 text-brand" />
-          </div>
-          <h1 className="text-[14px] font-bold tracking-tight truncate max-w-[200px] md:max-w-md">
-            {session.title === "New chat" ? "Conversation" : session.title}
-          </h1>
+    <div className="flex-1 flex flex-col relative bg-surface h-full overflow-hidden">
+      {/* Top Bar (Minimalist) */}
+      <header className="h-16 flex items-center justify-between px-8 border-b border-outline-variant/10 bg-surface/40 backdrop-blur-md z-10 shrink-0">
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-bold text-on-surface-variant tracking-wider uppercase">Current Session:</span>
+          <h2 className="text-sm font-semibold text-primary truncate max-w-sm">
+             {session.title}
+          </h2>
         </div>
-        <button
-          onClick={() => { const id = createSession(); setActiveSession(id); }}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand text-white text-xs font-semibold hover:bg-brand-hover transition-all shadow-sm shadow-brand/10"
-        >
-          <Plus className="w-3.5 h-3.5" /> New chat
-        </button>
+        <div className="flex items-center gap-6">
+          <button 
+           onClick={() => { const id = createSession(); setActiveSession(id); }}
+           className="text-on-surface-variant flex items-center gap-2 hover:text-primary transition-colors text-sm font-bold"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            New
+          </button>
+        </div>
       </header>
 
-      {/* Messages area - centered content constraint */}
-      <div className="flex-1 overflow-y-auto custom-scroll px-4">
-        <div className="max-w-3xl mx-auto py-12 space-y-10">
+      {/* Chat Interface Canvas */}
+      <section className="flex-1 overflow-y-auto px-6 py-12 flex flex-col items-center custom-scrollbar">
+        <div className="w-full max-w-4xl space-y-12">
           {session.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-6">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand/15 to-transparent border border-brand/10 flex items-center justify-center">
-                <Layers className="w-10 h-10 text-brand" />
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[40px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>water</span>
               </div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold tracking-tight">Chat over your index</h2>
-                <p className="text-sm text-[rgb(var(--text-2))] max-w-md mx-auto leading-relaxed">
-                  Ask about uploaded PDFs, slides, docs, or source files. Answers cite retrieved chunks only.
+                <h2 className="text-2xl font-bold tracking-tight text-on-surface">Atmospheric RAG Active</h2>
+                <p className="text-sm text-on-surface-variant max-w-md mx-auto leading-relaxed">
+                  Query across securely indexed documents, source code, and telemetry context.
                 </p>
               </div>
             </div>
@@ -135,16 +133,16 @@ export default function ChatPage() {
           ))}
           <div ref={bottomRef} className="h-4" />
         </div>
-      </div>
+      </section>
 
-      {/* Input area - floaty centered look */}
-      <div className="w-full max-w-4xl mx-auto">
+      {/* Input Anchor */}
+      <footer className="px-8 pb-8 pt-4 shrink-0 border-t border-outline-variant/10 bg-surface/90 backdrop-blur-sm">
         <ChatInput
           onSend={sendMessage}
           isStreaming={isStreaming}
           onStop={stopStreaming}
         />
-      </div>
+      </footer>
     </div>
   );
 }
