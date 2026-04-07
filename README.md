@@ -66,6 +66,38 @@ The backend operates over localized REST paths at `http://localhost:8000`. You c
 
 ---
 
+## 🎛️ Local Fine-Tuning Pipeline & Deployment
+
+This workspace features a lightweight MLOps pipeline, allowing you to train local LLMs on your proprietary data using Unsloth QLoRA.
+
+### 1. Synthetic Dataset Generation
+The pipeline queries your Chroma DB for raw data chunks and leverages your active LLM to generate highly relevant Q&A pairs (Dataset Synthesis). These pairs are formatted into `finetune_data.jsonl`. This step does not require an advanced GPU.
+
+### 2. LoRA Training (CUDA Required)
+The backend executes Python scripts leveraging Unsloth to perform memory-efficient QLoRA fine-tuning. It passes your generated dataset over a quantized base model (e.g., Llama-3-8B), outputting custom LoRA adapter weights.
+
+### 3. How to Deploy Your Fine-Tuned Model
+Once the frontend indicates "Training Complete," open a terminal on your host machine to compile and deploy the model to your local Ollama runtime:
+
+1. **Merge the LoRA Adapter** into GGUF format:
+   ```bash
+   python backend/scripts/merge_and_export.py
+   ```
+2. **Build the Ollama Model** using the generated Modelfile:
+   ```bash
+   # Make sure your Docker container or host terminal has Ollama access
+   ollama create my-custom-ai -f ./finetuned_model/Modelfile
+   ```
+3. **Mount the Custom Model** into the RAG engine:
+   Open your target `.env` file and instruct the system to use your custom creation:
+   ```env
+   LLM_PROVIDER=ollama
+   OLLAMA_MODEL=my-custom-ai
+   ```
+   Restart your Docker containers or servers.
+
+---
+
 ## 🚀 Getting Started
 
 You have two primary options: completely isolated via **Docker** (recommended) or deployed directly to your operating system via **Venv**. 
@@ -132,3 +164,9 @@ npm run dev
 **The Fix:** 
 - Keep the `deploy: resources: reservations: devices: - driver: nvidia` block commented out unless you actually have an active NVIDIA GPU installed on your host.
 - For older NVIDIA architectures (like the GTX 10-series Pascal), the main branch of PyTorch has phased out native bindings. Adjust the `backend/Dockerfile` to explicitly pull the `cu118` (CUDA 11.8) distribution of PyTorch before installing other packages!
+
+#### 6. Fine-Tuning Resource Constraints (OOM Errors)
+**The Constraint:** The actual LoRA training step of the Fine-tuning pipeline requires an active **NVIDIA GPU** with CUDA installed. 
+**The Fix:** 
+- You need an absolute minimum of **6GB to 8GB of VRAM** to prevent Out Of Memory (OOM) crashes during training.
+- If your training crashes immediately on the frontend, navigate to the `Fine-tune` UI and lower the **Batch Size** to `1` or `2`, which drastically reduces VRAM requirements at the cost of slightly slower training times.
