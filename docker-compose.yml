@@ -15,6 +15,7 @@
 services:
   backend:
     build: ./backend
+    image: rag-system-backend
     container_name: rag-system-backend
     # Comment the below block to disable NVIDIA GPU acceleration
     deploy:
@@ -58,6 +59,7 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: rag-system-frontend
     container_name: rag-system-frontend
     ports:
       - "3000:3000"
@@ -86,6 +88,10 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+
+networks:
+  default:
+    name: rag-system-network
 
 volumes:
   ollama_data:
