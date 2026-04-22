@@ -2,20 +2,23 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System dependencies for chromadb and pdfplumber
-RUN apt-get update && apt-get install -y \
-    build-essential \
+# System dependencies for chromadb and pdfplumber (minimal set)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \
     poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir --prefer-binary -r requirements.txt
+
+# Install PyTorch with CUDA 11.8 support for GPU acceleration (~4 GB for docker image)
+RUN pip install --no-cache-dir -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Install other dependencies with aggressive caching
+RUN pip install --no-cache-dir -q --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -q --prefer-binary -r requirements.txt
 
 COPY . .
 
